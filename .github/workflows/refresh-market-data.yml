@@ -1,0 +1,47 @@
+name: Refresh Shivshakti Market Data
+
+on:
+  schedule:
+    # GitHub cron uses UTC. Runs every 15 minutes during the approximate
+    # NSE session window on weekdays; delayed executions are possible.
+    - cron: "0,15,30,45 4-10 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: market-data-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Refresh OHLCV files
+        run: python scripts/refresh_market_data.py
+
+      - name: Commit updated CSV files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add candles.csv data/ status.json
+          if git diff --cached --quiet; then
+            echo "No data changes to commit."
+          else
+            git commit -m "chore(data): refresh OHLCV market data"
+            git push
+          fi
