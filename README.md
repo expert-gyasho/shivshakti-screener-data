@@ -1,15 +1,34 @@
 # Shivshakti Screener Data
 
-This public repository holds historical OHLCV candle data for the Shivshakti Trader screener.
+This repository stores OHLCV data for the Shivshakti Trader dashboard and its demand/supply zone scanners.
 
-## CSV format
+## Automatic refresh
 
-Save the data as `candles.csv`, with one row for each stock and candle:
+GitHub Actions is configured to run approximately every 15 minutes during the weekday NSE market-session window. Scheduled runs can be delayed. You can also run it manually from **Actions → Refresh Shivshakti Market Data → Run workflow**.
 
-```csv
-symbol,date,timeframe,open,high,low,close,volume
+Files produced:
+- `candles.csv` — scanner-ready OHLCV with Daily, Weekly, Monthly, Quarterly, Half-Yearly and Yearly rows.
+- `data/daily_ohlcv.csv` — daily OHLCV history.
+- `data/intraday_15m.csv` — latest available trading day's 15-minute candles.
+- `status.json` — last run time, symbol counts, row counts and warnings.
+
+## Data source and limitations
+
+The prototype uses Yahoo Finance through `yfinance` and the NIFTY 500 constituent list. Yahoo Finance is **not an official NSE feed**; availability, accuracy and latency are not guaranteed, and intraday data may be delayed or unavailable. GitHub scheduled jobs can also start late. Do not treat this prototype as guaranteed real-time data or use it for live trade execution without independent validation.
+
+For production use, replace the adapter with an authorized broker or licensed market-data provider API and follow its licensing/redistribution terms. NSE's policy restricts redistribution except as permitted by the relevant agreement: https://www.nseindia.com/static/market-data/nse-data-policy. NSE also lists paid real-time and delayed snapshot products: https://www.nseindia.com/static/market-data/real-time-data-subscription.
+
+## Run locally
+
+```bash
+python -m pip install -r requirements.txt
+python scripts/refresh_market_data.py
 ```
 
-Use ISO dates (`YYYY-MM-DD`) and timeframe values such as `Daily`, `Weekly`, or `Monthly`. Add only verified market data. The screener calculates candle classification and demand/supply Zone Analysis from the rows provided.
+Optional environment settings:
+- `DAILY_PERIOD` (default `5y`)
+- `INTRADAY_PERIOD` (default `5d`)
+- `DOWNLOAD_CHUNK_SIZE` (default `40`)
+- `NIFTY500_CSV_URL` (override the universe CSV URL)
 
-GitHub stores and serves the CSV; it does not generate or refresh market data. Keep API keys, passwords, PINs, and OTPs out of this public repository.
+Keep API keys, passwords, PINs and OTPs out of this public repository. If you add a licensed provider later, store credentials in GitHub Actions Secrets.
