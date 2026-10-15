@@ -4,6 +4,7 @@ on:
   schedule:
     # NSE session in IST is approximately 09:15-15:30 (UTC 03:45-10:00).
     # GitHub cron is UTC; scheduled starts may be delayed.
+    - cron: "45 3 * * 1-5"
     - cron: "0,15,30,45 4-9 * * 1-5"
     - cron: "0 10 * * 1-5"
   workflow_dispatch:
