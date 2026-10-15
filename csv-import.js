@@ -219,12 +219,35 @@
       stock.analysisTimeframe = candleFrames.Daily ? 'Daily' : candleFrames.Weekly ? 'Weekly' : candleFrames.Monthly ? 'Monthly' : Object.keys(candleFrames)[0];
       stock.analysis = preferred;
       stock.historicalSource = source;
-      stock.demand = Array(6).fill('No data');
-      stock.supply = Array(6).fill('No data');
-      stock.trend = Array(6).fill('No data');
-      stock.match = 0; stock.entry = 'No analysis'; stock.entryPrice = 0; stock.sl = 0; stock.target = 0; stock.rr = '—';
-      stock.score = 0; stock.freshnessScore = 0; stock.strengthScore = 0; stock.baseCount = 0; stock.authentic = false;
-      stock.emaW = 'No data'; stock.emaM = 'No data'; stock.emaMatch = 'No data';
+      // Use zones actually calculated from imported OHLCV, rather than wiping
+      // the demand/supply scanners to "No data" after every automatic refresh.
+      const orderedFrames = ['Daily', 'Weekly', 'Monthly', 'Quarterly', 'Half-Yearly', 'Yearly'];
+      const zoneLabel = zone => zone
+        ? `${zone.state} · ${zone.low.toFixed(2)}–${zone.high.toFixed(2)}`
+        : 'No zone';
+      stock.demand = orderedFrames.map(tf => zoneLabel(candleFrames[tf]?.demand));
+      stock.supply = orderedFrames.map(tf => zoneLabel(candleFrames[tf]?.supply));
+      stock.trend = orderedFrames.map(tf => {
+        const candles = candleFrames[tf]?.candles || [];
+        if (candles.length < 20) return 'Insufficient history';
+        const closes = candles.map(c => c.close);
+        const sma20 = closes.slice(-20).reduce((sum, value) => sum + value, 0) / 20;
+        const sma50 = closes.length >= 50
+          ? closes.slice(-50).reduce((sum, value) => sum + value, 0) / 50
+          : null;
+        const lastClose = closes.at(-1);
+        if (lastClose > sma20 && (sma50 === null || sma20 > sma50)) return 'Bullish';
+        if (lastClose < sma20 && (sma50 === null || sma20 < sma50)) return 'Bearish';
+        return 'Sideways';
+      });
+      // Entry/scorecard calculations are not yet production-validated. Do not
+      // manufacture trade recommendations from incomplete indicator data.
+      stock.match = 0; stock.entry = 'No validated setup'; stock.entryPrice = 0; stock.sl = 0; stock.target = 0; stock.rr = '—';
+      stock.score = 0; stock.freshnessScore = 0; stock.strengthScore = 0;
+      const allZones = orderedFrames.flatMap(tf => [candleFrames[tf]?.demand, candleFrames[tf]?.supply].filter(Boolean));
+      stock.baseCount = allZones.length ? Math.min(...allZones.map(zone => zone.baseCount)) : 0;
+      stock.authentic = false;
+      stock.emaW = 'Not calculated'; stock.emaM = 'Not calculated'; stock.emaMatch = 'Not calculated';
       importedStocks.push(stock);
       if (!known.has(symbol)) { stocks.push(stock); known.set(symbol, stock); }
     }
@@ -232,7 +255,7 @@
     document.querySelector('.sample-pill').textContent = '● HISTORICAL CSV · ZONES CALCULATED';
     if (saveCandlesButton) saveCandlesButton.disabled = false;
     document.querySelector('.market-pill').innerHTML = '<i></i>' + safeHtml(source);
-    note.innerHTML = '<strong>Historical candles imported.</strong> Daily candles are grouped into weekly, monthly, quarterly, half-yearly and yearly candles when those timeframes are not supplied. The latest grouped candle can be incomplete. Other multi-timeframe indicators and index cards may still be sample values.';
+    note.innerHTML = '<strong>Yahoo Finance historical OHLCV connected.</strong> Demand/Supply zones and simple SMA-based trend labels are calculated from imported candles. Weekly/monthly/quarterly/half-yearly/yearly bars are grouped from daily data; the latest bar may be incomplete. Entry/SL/target, trade score, EMA scanner and index cards are not yet validated live signals and must not be treated as trade recommendations.';
     document.querySelector('#tabs [data-view="candles"]')?.click();
     render();
     document.querySelector('#rowCount').textContent = `${bySymbol.size} symbols · historical OHLCV candles${skipped ? ` · ${skipped} invalid rows skipped` : ''}`;
