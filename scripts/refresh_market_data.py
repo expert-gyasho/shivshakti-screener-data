@@ -150,7 +150,38 @@ def main() -> int:
     tickers = get_symbols()
     print(f"Universe contains {len(tickers)} NIFTY 500 symbols")
 
-    daily = download_history(tickers, DAILY_PERIOD, "1d")
+    # Download full daily history only for the first successful bootstrap.
+    # On later 15-minute runs, fetch the recent daily bars and merge them into
+    # stored history so the long-term scanners keep their historical candles
+    # without re-downloading five years for every run.
+    existing_daily: dict[str, pd.DataFrame] = {}
+    if DAILY_PATH.exists() and DAILY_PATH.stat().st_size > 20:
+        try:
+            saved = pd.read_csv(DAILY_PATH)
+            if {"symbol", "date", "open", "high", "low", "close", "volume"}.issubset(saved.columns):
+                saved["date"] = pd.to_datetime(saved["date"], errors="coerce")
+                saved = saved.dropna(subset=["date"])
+                for symbol, group in saved.groupby("symbol"):
+                    frame = group.set_index("date")[["open", "high", "low", "close", "volume"]].copy()
+                    frame.index = pd.DatetimeIndex(frame.index).tz_localize(None)
+                    frame = frame[~frame.index.duplicated(keep="last")].sort_index()
+                    existing_daily[f"{symbol}.NS"] = frame
+        except Exception as exc:
+            print(f"Could not reuse stored daily history; will bootstrap full history: {exc}", file=sys.stderr)
+
+    daily_fetch_period = "5d" if existing_daily else DAILY_PERIOD
+    print(f"Daily history mode: {'incremental merge' if existing_daily else 'initial full-history bootstrap'} (download period={daily_fetch_period})")
+    daily = download_history(tickers, daily_fetch_period, "1d")
+    # Merge recent bars over stored history, retaining all earlier bars.
+    for ticker, old_frame in existing_daily.items():
+        new_frame = daily.get(ticker, pd.DataFrame())
+        if new_frame.empty:
+            daily[ticker] = old_frame
+        else:
+            combined = pd.concat([old_frame, new_frame])
+            combined = combined[~combined.index.duplicated(keep="last")].sort_index()
+            daily[ticker] = combined
+
     intraday = download_history(tickers, INTRADAY_PERIOD, "15m")
     if not daily and not intraday:
         raise RuntimeError("No market data downloaded. Existing CSVs were not replaced.")
