@@ -243,19 +243,7 @@
   function importText(text, source) {
     const rows = parseCsv(text);
     if (rows.length === 1) {
-      const headers = rows[0].map(normalize);
-      const needed = ['symbol', 'date', 'open', 'high', 'low', 'close', 'volume'];
-      if (needed.every(key => headers.includes(key))) {
-        stocks.splice(0, stocks.length);
-        if (saveCandlesButton) saveCandlesButton.disabled = true;
-        document.querySelector('.sample-pill').textContent = '● CSV TEMPLATE · NO MARKET DATA';
-        document.querySelector('.market-pill').innerHTML = '<i></i>' + safeHtml(source);
-        note.innerHTML = '<strong>CSV template connected, but it has no candle rows yet.</strong> Add verified OHLCV rows to GitHub before expecting prices or Zone Analysis.';
-        document.querySelector('#tabs [data-view="candles"]')?.click();
-        render();
-        message('CSV headings found; no market rows yet');
-        return;
-      }
+      throw new Error('GitHub CSV abhi empty hai. Existing screener data ko safe rakha gaya hai; data aane par auto-reload khud import karega.');
     }
     if (rows.length < 2) throw new Error('CSV mein header aur kam se kam ek data row chahiye.');
     if (importCandleRows(rows, source)) return;
@@ -312,7 +300,8 @@
   try {
     const savedUrl = localStorage.getItem('shivshakti-csv-url');
     if (savedUrl && urlInput) urlInput.value = savedUrl;
-    const enabled = localStorage.getItem('shivshakti-csv-auto-reload') === 'true';
+    const savedAutoReload = localStorage.getItem('shivshakti-csv-auto-reload');
+    const enabled = savedAutoReload === null ? true : savedAutoReload === 'true';
     if (autoReload) autoReload.checked = enabled;
   } catch { /* Browser privacy settings may disable local storage. */ }
   urlInput?.addEventListener('change', () => {
