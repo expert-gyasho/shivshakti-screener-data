@@ -3,23 +3,36 @@
   "provider": "Yahoo Finance via yfinance (unofficial; prototype only)",
   "universe": "NIFTY 500",
   "symbols_requested": 501,
-  "daily_symbols_received": 496,
-  "intraday_symbols_received": 313,
+  "daily_symbols_received": 499,
+  "intraday_symbols_received": 497,
   "failed_daily_symbols": [
     "BAGMANE",
-    "BIRET",
-    "DUMMYHEG",
-    "EMBASSY",
-    "IIFL"
+    "DUMMYHEG"
   ],
   "daily_period": "5y",
   "intraday_period": "5d",
-  "last_successful_run_utc": "2026-10-15T16:27:22.949673+00:00",
-  "duration_seconds": 172.9,
+  "last_successful_run_utc": "2026-10-15T17:46:22.210776+00:00",
+  "duration_seconds": 126.5,
+  "timeframe_rows": {
+    "Daily": 490395,
+    "Weekly": 103647,
+    "Monthly": 24288,
+    "Quarterly": 8458,
+    "Half-Yearly": 4491,
+    "Yearly": 2469
+  },
+  "timeframes_validated": [
+    "Daily",
+    "Half-Yearly",
+    "Monthly",
+    "Quarterly",
+    "Weekly",
+    "Yearly"
+  ],
   "csv_rows": {
-    "candles.csv": 633718,
-    "data/daily_ohlcv.csv": 490383,
-    "data/intraday_15m.csv": 7825
+    "candles.csv": 633748,
+    "data/daily_ohlcv.csv": 490395,
+    "data/intraday_15m.csv": 12356
   },
   "warning": "Unofficial market data; verify accuracy and data-use permissions before trading or redistribution."
 }
