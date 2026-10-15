@@ -1,6 +1,13 @@
 name: Refresh Shivshakti Market Data
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "requirements.txt"
+      - "scripts/refresh_market_data.py"
+      - ".github/workflows/refresh-market-data.yml"
   schedule:
     # NSE session in IST is approximately 09:15-15:30 (UTC 03:45-10:00).
     # GitHub cron is UTC; scheduled starts may be delayed.
