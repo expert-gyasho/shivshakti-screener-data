@@ -282,13 +282,17 @@
     finally { fileInput.value = ''; }
   });
 
+  const DEFAULT_CSV_URL = 'https://raw.githubusercontent.com/expert-gyasho/shivshakti-screener-data/main/candles.csv';
+
   async function loadGithubCsv(isAuto = false) {
     const original = loadButton.textContent;
     if (loadButton.disabled) return;
     loadButton.disabled = true; loadButton.textContent = 'Loading…';
     try {
-      const url = rawGithubUrl(urlInput.value.trim());
-      localStorage.setItem('shivshakti-csv-url', urlInput.value.trim());
+      const chosenUrl = urlInput.value.trim() || DEFAULT_CSV_URL;
+      const url = rawGithubUrl(chosenUrl);
+      if (urlInput && !urlInput.value.trim()) urlInput.value = DEFAULT_CSV_URL;
+      localStorage.setItem('shivshakti-csv-url', chosenUrl);
       const response = await fetch(url, { cache: 'no-store' });
       if (!response.ok) throw new Error(`GitHub CSV load failed (${response.status}).`);
       importText(await response.text(), `GitHub CSV · ${new Date().toLocaleTimeString('en-IN')}`);
@@ -299,7 +303,7 @@
 
   try {
     const savedUrl = localStorage.getItem('shivshakti-csv-url');
-    if (savedUrl && urlInput) urlInput.value = savedUrl;
+    if (urlInput) urlInput.value = savedUrl || DEFAULT_CSV_URL;
     const savedAutoReload = localStorage.getItem('shivshakti-csv-auto-reload');
     const enabled = savedAutoReload === null ? true : savedAutoReload === 'true';
     if (autoReload) autoReload.checked = enabled;
