@@ -119,9 +119,12 @@ def rows_for_timeframe(symbol: str, frame: pd.DataFrame, timeframe: str) -> list
         stamp = pd.Timestamp(row[date_col])
         if stamp.tzinfo is not None:
             stamp = stamp.tz_convert("Asia/Kolkata").tz_localize(None)
+        # Preserve intraday candle times; date-only values collapse all
+        # 15-minute bars from the same session into a single deduplicated row.
+        date_value = stamp.strftime("%Y-%m-%d %H:%M:%S") if timeframe == "15-Minute" else stamp.strftime("%Y-%m-%d")
         result.append({
             "symbol": symbol,
-            "date": stamp.strftime("%Y-%m-%d"),
+            "date": date_value,
             "timeframe": timeframe,
             "open": round(float(row["open"]), 4),
             "high": round(float(row["high"]), 4),
