@@ -75,6 +75,11 @@ def get_ticker_frame(download: pd.DataFrame, ticker: str) -> pd.DataFrame:
     if not all(col in frame.columns for col in required):
         return pd.DataFrame()
     frame = frame[required].copy()
+    # Normalize every Yahoo timestamp to naive Asia/Kolkata time. Saved CSV
+    # dates are local and timezone-naive; mixing them with Yahoo's timezone-
+    # aware index breaks the next incremental merge on later scheduled runs.
+    if getattr(frame.index, "tz", None) is not None:
+        frame.index = frame.index.tz_convert("Asia/Kolkata").tz_localize(None)
     frame = frame[~frame.index.duplicated(keep="last")].sort_index()
     frame = frame.dropna(subset=["open", "high", "low", "close"])
     return frame
