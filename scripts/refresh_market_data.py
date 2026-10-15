@@ -255,6 +255,30 @@ def main() -> int:
         temp.replace(path)
 
     columns = ["symbol", "date", "timeframe", "open", "high", "low", "close", "volume"]
+
+    # Validate generated scanner output before replacing the currently published
+    # CSVs. This protects the dashboard from empty, duplicate or malformed bars.
+    required_timeframes = {"Daily", "Weekly", "Monthly", "Quarterly", "Half-Yearly", "Yearly"}
+    present_timeframes = {row["timeframe"] for row in scanner_rows}
+    missing_timeframes = sorted(required_timeframes - present_timeframes)
+    if missing_timeframes:
+        raise RuntimeError(f"Refusing to publish scanner CSV: missing timeframes {missing_timeframes}")
+
+    seen_keys = set()
+    timeframe_counts: dict[str, int] = {}
+    for row in scanner_rows:
+        symbol, date_value, timeframe = row["symbol"], row["date"], row["timeframe"]
+        key = (symbol, date_value, timeframe)
+        if key in seen_keys:
+            raise RuntimeError(f"Refusing to publish duplicate candle key: {key}")
+        seen_keys.add(key)
+        o, h, low, c, volume = (float(row[k]) for k in ("open", "high", "low", "close", "volume"))
+        if not all(math.isfinite(value) for value in (o, h, low, c, volume)):
+            raise RuntimeError(f"Refusing to publish non-finite OHLCV row: {key}")
+        if min(o, h, low, c) <= 0 or volume < 0 or h < max(o, low, c) or low > min(o, h, c):
+            raise RuntimeError(f"Refusing to publish invalid OHLCV values: {key}")
+        timeframe_counts[timeframe] = timeframe_counts.get(timeframe, 0) + 1
+
     safe_write_csv(scanner_rows, CANDLES_PATH, columns)
     safe_write_csv(daily_rows, DAILY_PATH, columns)
     safe_write_csv(intraday_rows, INTRADAY_PATH, columns)
@@ -272,6 +296,8 @@ def main() -> int:
         "intraday_period": INTRADAY_PERIOD,
         "last_successful_run_utc": finished.isoformat(),
         "duration_seconds": round((finished - started).total_seconds(), 1),
+        "timeframe_rows": timeframe_counts,
+        "timeframes_validated": sorted(present_timeframes),
         "csv_rows": {
             "candles.csv": len(scanner_rows),
             "data/daily_ohlcv.csv": len(daily_rows),
