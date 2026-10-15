@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import io
 import json
+import math
 import os
 import sys
 from datetime import datetime, timezone
@@ -102,7 +103,7 @@ def download_history(tickers: list[str], period: str, interval: str) -> dict[str
                 progress=False,
                 timeout=25,
                 prepost=False,
-                repair=True,
+                repair=False,  # Avoid yfinance's optional scikit-learn repair dependency; validate OHLCV ourselves.
             )
         except Exception as exc:
             print(f"Chunk failed ({interval}): {exc}", file=sys.stderr)
