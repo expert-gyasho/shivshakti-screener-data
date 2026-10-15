@@ -51,18 +51,26 @@ jobs:
           if git diff --cached --quiet; then
             echo "No data changes to commit."
           else
-            git commit -m "chore(data): refresh OHLCV market data"
-            # A concurrent workflow or web edit may advance main after checkout.
-            # Rebase on the newest main and retry push to avoid losing a data run.
-            for attempt in 1 2 3; do
-              git pull --rebase origin main
+            # Do not rebase a generated data commit: concurrent refreshes both
+            # create/update large CSVs and add/add conflicts can strand rebase.
+            # Instead, preserve the newly generated CSVs in the worktree, reset
+            # the index to the newest main, then commit only the data outputs.
+            for attempt in 1 2 3 4 5; do
+              git fetch origin main
+              git reset origin/main
+              git add candles.csv data/ status.json
+              if git diff --cached --quiet; then
+                echo "No data changes to commit."
+                exit 0
+              fi
+              git commit -m "chore(data): refresh OHLCV market data"
               if git push origin HEAD:main; then
                 echo "CSV updates pushed successfully."
                 exit 0
               fi
-              echo "Push attempt $attempt failed; retrying after refreshing main."
+              echo "Push attempt $attempt failed because main advanced; rebuilding data commit on latest main."
               sleep 2
             done
-            echo "Could not push CSV updates after 3 attempts." >&2
+            echo "Could not push CSV updates after 5 attempts." >&2
             exit 1
           fi
