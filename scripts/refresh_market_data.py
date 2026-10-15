@@ -155,6 +155,18 @@ def main() -> int:
     if not daily and not intraday:
         raise RuntimeError("No market data downloaded. Existing CSVs were not replaced.")
 
+    # Safety gate: never replace the scanner's existing CSV with a small,
+    # rate-limited or otherwise incomplete daily universe.
+    min_daily_coverage = float(os.getenv("MIN_DAILY_COVERAGE", "0.60"))
+    daily_coverage = len(daily) / max(len(tickers), 1)
+    print(f"Daily data coverage: {len(daily)}/{len(tickers)} ({daily_coverage:.1%}); minimum required: {min_daily_coverage:.1%}")
+    if daily_coverage < min_daily_coverage:
+        raise RuntimeError(
+            f"Only {len(daily)} of {len(tickers)} symbols downloaded daily data "
+            f"({daily_coverage:.1%}); below {min_daily_coverage:.1%} safety threshold. "
+            "Existing scanner CSVs were not replaced."
+        )
+
     daily_rows: list[dict] = []
     scanner_rows: list[dict] = []
     intraday_rows: list[dict] = []
