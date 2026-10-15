@@ -76,6 +76,28 @@ def get_ticker_frame(download: pd.DataFrame, ticker: str) -> pd.DataFrame:
     if not all(col in frame.columns for col in required):
         return pd.DataFrame()
     frame = frame[required].copy()
+    # Yahoo can occasionally return malformed OHLC rows for a single ticker
+    # (for example, high below close or non-finite values). Filter those rows
+    # here rather than failing the entire market-wide refresh; the later
+    # validation gate still rejects any malformed rows that slip through.
+    for col in required:
+        frame[col] = pd.to_numeric(frame[col], errors="coerce")
+    ohlc = frame[["open", "high", "low", "close"]]
+    finite_ohlc = ohlc.applymap(math.isfinite).all(axis=1)
+    valid_ohlc = (
+        finite_ohlc
+        & (ohlc > 0).all(axis=1)
+        & (frame["high"] >= ohlc.max(axis=1))
+        & (frame["low"] <= ohlc.min(axis=1))
+        & (frame["volume"].fillna(0) >= 0)
+        & frame["volume"].fillna(0).map(math.isfinite)
+    )
+    rejected = int((~valid_ohlc).sum())
+    if rejected:
+        print(f"{ticker}: skipped {rejected} invalid OHLCV row(s)", file=sys.stderr)
+    frame = frame.loc[valid_ohlc].copy()
+    if frame.empty:
+        return pd.DataFrame()
     # Normalize every Yahoo timestamp to naive Asia/Kolkata time. Saved CSV
     # dates are local and timezone-naive; mixing them with Yahoo's timezone-
     # aware index breaks the next incremental merge on later scheduled runs.
