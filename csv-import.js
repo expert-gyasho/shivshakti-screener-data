@@ -327,18 +327,16 @@
   try {
     const savedUrl = localStorage.getItem('shivshakti-csv-url');
     if (urlInput) urlInput.value = savedUrl || DEFAULT_CSV_URL;
-    const savedAutoReload = localStorage.getItem('shivshakti-csv-auto-reload-v2');
-    // Keep auto-import off by default: the current historical CSV is large and
-    // importCandleRows replaces the screener's sample universe/fields. The
-    // GitHub data pipeline itself continues refreshing automatically.
-    const enabled = savedAutoReload === 'true';
+    const savedAutoReload = localStorage.getItem('shivshakti-csv-auto-reload-v3');
+    // Enable the GitHub market CSV automatically in a fresh browser; checkbox can turn it off.
+    const enabled = savedAutoReload !== 'false';
     if (autoReload) autoReload.checked = enabled;
   } catch { /* Browser privacy settings may disable local storage. */ }
   urlInput?.addEventListener('change', () => {
     try { localStorage.setItem('shivshakti-csv-url', urlInput.value.trim()); } catch { /* Optional preference only. */ }
   });
   autoReload?.addEventListener('change', () => {
-    try { localStorage.setItem('shivshakti-csv-auto-reload-v2', String(autoReload.checked)); } catch { /* Optional preference only. */ }
+    try { localStorage.setItem('shivshakti-csv-auto-reload-v3', String(autoReload.checked)); } catch { /* Optional preference only. */ }
     if (autoReload.checked) loadGithubCsv();
     message(autoReload.checked ? 'Auto-reload on: public CSV har 5 minute mein dobara load hogi.' : 'Auto-reload off.');
   });
