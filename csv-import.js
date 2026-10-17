@@ -1,23 +1,38 @@
 (() => {
   const fileInput = document.querySelector('#csvFile');
   const openButton = document.querySelector('#importCsv');
+
   const urlInput = document.querySelector('#csvUrl');
   const loadButton = document.querySelector('#loadGithubCsv');
   const saveCandlesButton = document.querySelector('#downloadCandles');
   const autoReload = document.querySelector('#autoReloadCsv');
   const note = document.querySelector('#dataNote');
+  const timeframeFilter = document.querySelector('#frameFilter');
+  if (timeframeFilter && ![...timeframeFilter.options].some(option => option.value === 'intraday')) {
+    timeframeFilter.add(new Option('15-minute', 'intraday'));
+  }
   if (!fileInput || !openButton || !note) return;
 
   const safeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const normalize = value => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   const aliases = {
     symbol: ['symbol', 'ticker', 'tradingsymbol', 'security', 'tckrsymb'],
-    date: ['date', 'datetime', 'timestamp', 'time', 'traddt'],
+    date: ['date', 'datetime', 'timestamp', 'time', 'traddt', 'tradingdate'],
     timeframe: ['timeframe', 'interval', 'period'],
     series: ['series', 'sctysrs'],
-    open: ['open', 'o', 'opnpric'], high: ['high', 'h', 'hghpric'], low: ['low', 'l', 'lwpric'],
-    close: ['close', 'c', 'ltp', 'price', 'clspric'], volume: ['volume', 'vol', 'v', 'ttltradgvol']
+    open: ['open', 'o', 'opnpric', 'openprice'], high: ['high', 'h', 'hghpric', 'highprice'], low: ['low', 'l', 'lwpric', 'lowprice'],
+    close: ['close', 'c', 'ltp', 'price', 'clspric', 'closeprice'], volume: ['volume', 'vol', 'v', 'ttltradgvol', 'totaltradedquantity']
   };
+
+  function normalizeDate(value) {
+    const text = String(value || '').trim();
+    if (/^\d{1,2}-[A-Za-z]{3}-\d{4}$/.test(text)) {
+      const [day, mon, year] = text.split('-');
+      const month = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(mon.toLowerCase());
+      if (month >= 0) return `${year}-${String(month + 1).padStart(2, '0')}-${day.padStart(2, '0')}`;
+    }
+    return text;
+  }
 
   function parseCsv(text) {
     const rows = []; let row = [], cell = '', quoted = false;
@@ -49,6 +64,7 @@
 
   function frameName(value) {
     const n = normalize(value || 'daily');
+    if (['15m', '15min', '15minute', 'intraday'].includes(n)) return '15-minute';
     if (['1d', 'd', 'day', 'daily'].includes(n)) return 'Daily';
     if (['1w', 'w', 'week', 'weekly'].includes(n)) return 'Weekly';
     if (['1mo', 'mo', 'month', 'monthly'].includes(n)) return 'Monthly';
@@ -63,7 +79,7 @@
     if (range <= 0) return 'Invalid range';
     const bodyPct = Math.abs(c.close - c.open) / range * 100;
     if (bodyPct < 10) return 'Doji';
-    if (bodyPct < 50) return c.close >= c.open ? 'Small bullish body' : 'Small bearish body';
+    if (bodyPct <= 50) return c.close >= c.open ? 'Small bullish body' : 'Small bearish body';
     return c.close >= c.open ? 'Bullish exciting candle' : 'Bearish exciting candle';
   }
 
@@ -71,40 +87,123 @@
     const zones = [];
     for (let start = 1; start < candles.length - 1; start++) {
       const previous = candles[start - 1];
-      if (previous.bodyPct < 50) continue;
+      if (previous.bodyPct <= 50) continue;
       let end = start;
-      while (end < candles.length && end - start < 5 && candles[end].bodyPct < 50) end++;
+      while (end < candles.length && candles[end].bodyPct < 50) end++;
       const baseCount = end - start;
-      if (baseCount < 1 || baseCount > 5 || end >= candles.length) continue;
+      if (baseCount < 1 || end >= candles.length) continue;
       const departure = candles[end];
-      if (departure.bodyPct < 50) continue;
+      if (departure.bodyPct <= 50) { start = end; continue; }
       const demand = departure.close > departure.open;
       if ((side === 'demand') !== demand) continue;
+      if (demand ? departure.close <= previous.close : departure.close >= previous.close) continue;
       const base = candles.slice(start, end);
       const bodies = base.map(c => [Math.min(c.open, c.close), Math.max(c.open, c.close)]);
       const proximal = side === 'demand' ? Math.max(...bodies.map(b => b[1])) : Math.min(...bodies.map(b => b[0]));
       const distal = side === 'demand' ? Math.min(...base.map(c => c.low)) : Math.max(...base.map(c => c.high));
       const low = Math.min(proximal, distal), high = Math.max(proximal, distal);
-      const revisits = candles.slice(end + 1).filter(c => c.low <= high && c.high >= low).length;
+      let revisits = 0, wasInside = false;
+      for (const candle of candles.slice(end + 1)) {
+        const inside = candle.low <= high && candle.high >= low;
+        if (inside && !wasInside) revisits++;
+        wasInside = inside;
+      }
+      const next = candles[end + 1];
+      const gap = side === 'demand' ? departure.low > base.at(-1).high : departure.high < base.at(-1).low;
+      const secondExciting = Boolean(next && next.bodyPct > 50 && (side === 'demand' ? next.close > next.open : next.close < next.open));
+      const strengthReason = gap ? 'gap' : secondExciting ? 'twoCandles' : 'singleNoGap';
+      const strengthScore = gap || secondExciting ? 2 : 1;
+      const freshnessScore = revisits === 0 ? 3 : revisits === 1 ? 1.5 : 0;
+      const baseScore = baseCount <= 3 ? 2 : baseCount <= 5 ? 1 : 0;
+      const pattern = side === 'demand' ? (previous.close < previous.open ? 'DBR' : 'RBR') : (previous.close > previous.open ? 'RBD' : 'DBD');
+      const overlappingPrior = zones.find(zone => zone.high >= low && zone.low <= high);
       const current = candles[candles.length - 1].close;
       const edgeDistance = current > high ? (current - high) / current * 100 : current < low ? (low - current) / current * 100 : 0;
       let state = current >= low && current <= high ? 'In zone' : current > high ? 'Above zone' : 'Below zone';
       if (state !== 'In zone' && edgeDistance <= 2) state = 'Near zone';
-      zones.push({ low, high, startDate: base[0].date, departureDate: departure.date, baseCount, revisits, freshness: revisits === 0 ? 'Fresh' : revisits === 1 ? 'Tested once' : 'Tested 2+ times', state });
+      zones.push({ side, low, high, proximal, distal, startDate: base[0].date, departureDate: departure.date, departureIndex: end, baseCount, revisits, freshnessScore, freshness: revisits === 0 ? 'Fresh' : revisits === 1 ? 'Tested once' : 'Tested 2+ times', strengthReason, strengthScore, baseScore, score: freshnessScore + strengthScore + baseScore, pattern, authentic: !overlappingPrior, authenticityReason: overlappingPrior ? `Overlaps earlier ${side} zone from ${overlappingPrior.startDate}` : 'No overlap with earlier same-side zone found', state });
       start = end;
     }
-    return zones.slice(-1)[0] || null;
+    return zones;
+  }
+
+  function candleInZone(candle, zone, field) { return candle[field] >= zone.low && candle[field] <= zone.high; }
+
+  function latestConfirmation(candles, zone) {
+    if (!zone || candles.length < 2) return null;
+    const first = candles.at(-2), second = candles.at(-1);
+    if (first.close < zone.low || first.close > zone.high) return null;
+    const exitsCorrectly = zone.side === 'demand' ? second.close > zone.high : second.close < zone.low;
+    if (exitsCorrectly) return { type: 'type3', date: second.date };
+    if (candleInZone(second, zone, 'open')) return { type: 'type2', date: second.date };
+    return null;
+  }
+
+  function trendFromPdf(candles) {
+    if (candles.length < 57) return { label: 'Insufficient 57 candles', slopePercent: null };
+    const averageAt = end => candles.slice(end - 49, end + 1).reduce((sum, candle) => sum + candle.close, 0) / 50;
+    const now = averageAt(candles.length - 1), then = averageAt(candles.length - 8);
+    const slopePercent = (now - then) / candles.at(-1).close * 100;
+    const label = slopePercent > 0.1 ? 'Uptrend' : slopePercent < -0.1 ? 'Downtrend' : 'Sideways';
+    return { label, slopePercent };
+  }
+
+  function closestZone(zones, price) {
+    return zones.filter(zone => zone.revisits === 0).sort((a, b) => {
+      const distance = zone => price < zone.low ? zone.low - price : price > zone.high ? price - zone.high : 0;
+      return distance(a) - distance(b);
+    })[0] || null;
+  }
+
+  function curveLocation(price, demand, supply) {
+    if (!demand || !supply) return { label: demand || supply ? 'Equilibrium (one fresh zone)' : 'Equilibrium (no fresh zones)', ratio: null };
+    if (supply.proximal <= demand.proximal) return { label: 'Equilibrium (zone order unclear)', ratio: null };
+    const ratio = (price - demand.proximal) / (supply.proximal - demand.proximal);
+    if (ratio <= 1 / 3) return { label: 'Low / very low', ratio };
+    if (ratio >= 2 / 3) return { label: 'High / very high', ratio };
+    return { label: 'Equilibrium', ratio };
+  }
+
+  function pdfTradeData(analysis, candles) {
+    const price = analysis.latest.close;
+    const demand = closestZone(analysis.demandZones, price);
+    const supply = closestZone(analysis.supplyZones, price);
+    const trend = trendFromPdf(candles);
+    const location = curveLocation(price, demand, supply);
+    let side = location.label.startsWith('Low') ? 'demand' : location.label.startsWith('High') ? 'supply' : trend.label === 'Uptrend' ? 'demand' : trend.label === 'Downtrend' ? 'supply' : null;
+    if (!demand && !supply) side = null;
+    const zone = side === 'demand' ? demand : side === 'supply' ? supply : [analysis.demand, analysis.supply].filter(Boolean).sort((a,b) => b.score-a.score)[0] || null;
+    const confirmation = latestConfirmation(candles, zone);
+    let entryType = 'No trade · trend/location not confirmed';
+    if (zone) {
+      if (!zone.authentic) entryType = 'No trade · non-authentic zone';
+      else if (zone.score < 5) entryType = 'No trade · score below 5';
+      else if (!side || !['Uptrend','Downtrend'].includes(trend.label)) entryType = 'Ignore · trend sideways/insufficient';
+      else if ((side === 'demand' && trend.label !== 'Uptrend') || (side === 'supply' && trend.label !== 'Downtrend')) entryType = 'Ignore · trend conflicts';
+      else if (zone.score === 7) entryType = 'Type 1 · Set & Forget';
+      else if (zone.score >= 5 && confirmation?.type === 'type2') entryType = 'Type 2 · close/open confirmed';
+      else if (zone.score >= 5 && confirmation?.type === 'type3') entryType = 'Type 3 · exit confirmed';
+      else entryType = 'Wait · Type 2/3 confirmation';
+    }
+    const entryLine = zone?.proximal ?? 0, stopLine = zone?.distal ?? 0;
+    const tradeSide = side || zone?.side;
+    const risk = tradeSide === 'supply' ? stopLine - entryLine : entryLine - stopLine;
+    const targetLine = risk > 0 ? entryLine + (tradeSide === 'supply' ? -2 : 2) * risk : 0;
+    return { side, zone, demand, supply, location, trend, confirmation, entryType, entryLine, stopLine, targetLine, score: zone?.score ?? 0 };
   }
 
   function analyze(candles) {
     candles.sort((a, b) => a.date.localeCompare(b.date));
     candles.forEach(c => { c.bodyPct = (Math.abs(c.close - c.open) / (c.high - c.low)) * 100; c.type = candleType(c); });
     const last = candles.at(-1), previous = candles.at(-2);
-    return {
+    const demandZones = findZones(candles, 'demand'), supplyZones = findZones(candles, 'supply');
+    const result = {
       candles, latest: last, change: previous ? (last.close - previous.close) / previous.close * 100 : null,
-      candleType: last.type, bodyPercent: last.bodyPct,
-      demand: findZones(candles, 'demand'), supply: findZones(candles, 'supply')
+      candleType: last.type, bodyPercent: last.bodyPct, demandZones, supplyZones,
+      demand: demandZones.at(-1) || null, supply: supplyZones.at(-1) || null
     };
+    result.pdfTrade = pdfTradeData(result, candles);
+    return result;
   }
 
   function deriveCandles(dailyCandles, timeframe) {
@@ -179,7 +278,7 @@
     for (const cells of rows.slice(1)) {
       if (col.series >= 0 && String(cells[col.series] || '').trim().toUpperCase() !== 'EQ') { skipped++; continue; }
       const symbol = String(cells[col.symbol] || '').trim().toUpperCase();
-      const date = String(cells[col.date] || '').trim();
+      const date = normalizeDate(cells[col.date]);
       const candle = { open: number(cells[col.open]), high: number(cells[col.high]), low: number(cells[col.low]), close: number(cells[col.close]), volume: number(cells[col.volume]), date };
       if (!/^[A-Z0-9._-]{1,24}$/.test(symbol) || !/^\d{4}-\d{2}-\d{2}(?:[ T].*)?$/.test(date) || !Number.isFinite(Date.parse(date)) || !Object.values(candle).filter(v => typeof v === 'number').every(Number.isFinite) || Math.min(candle.open, candle.high, candle.low, candle.close) <= 0 || candle.high <= candle.low || candle.high < Math.max(candle.open, candle.close, candle.low) || candle.low > Math.min(candle.open, candle.close) || candle.volume < 0) { skipped++; continue; }
       const timeframe = frameName(col.timeframe >= 0 ? cells[col.timeframe] : 'Daily');
@@ -212,42 +311,31 @@
       stock.candleFrames = candleFrames;
       stock.importedTimeframes = sourceFrames.get(symbol) || Object.keys(candleFrames);
       const preferred = candleFrames.Daily || candleFrames.Weekly || candleFrames.Monthly || Object.values(candleFrames)[0];
+      const scoreFrames = ['Daily', 'Weekly', 'Monthly', 'Quarterly', 'Half-Yearly', 'Yearly'];
+      stock.pdfByTimeframe = Object.fromEntries(scoreFrames.filter(frame => candleFrames[frame]).map(frame => [frame, candleFrames[frame].pdfTrade]));
+      stock.analysisTimeframe = candleFrames.Daily ? 'Daily' : candleFrames.Weekly ? 'Weekly' : candleFrames.Monthly ? 'Monthly' : Object.keys(candleFrames)[0];
+      stock.pdfTrade = stock.pdfByTimeframe[stock.analysisTimeframe] || preferred.pdfTrade;
       stock.price = preferred.latest.close;
       stock.change = preferred.change;
       stock.candleType = preferred.candleType;
       stock.bodyPercent = preferred.bodyPercent;
-      stock.analysisTimeframe = candleFrames.Daily ? 'Daily' : candleFrames.Weekly ? 'Weekly' : candleFrames.Monthly ? 'Monthly' : Object.keys(candleFrames)[0];
       stock.analysis = preferred;
       stock.historicalSource = source;
-      // Use zones actually calculated from imported OHLCV, rather than wiping
-      // the demand/supply scanners to "No data" after every automatic refresh.
-      const orderedFrames = ['Daily', 'Weekly', 'Monthly', 'Quarterly', 'Half-Yearly', 'Yearly'];
-      const zoneLabel = zone => zone
-        ? `${zone.state} · ${zone.low.toFixed(2)}–${zone.high.toFixed(2)}`
-        : 'No zone';
-      stock.demand = orderedFrames.map(tf => zoneLabel(candleFrames[tf]?.demand));
-      stock.supply = orderedFrames.map(tf => zoneLabel(candleFrames[tf]?.supply));
-      stock.trend = orderedFrames.map(tf => {
-        const candles = candleFrames[tf]?.candles || [];
-        if (candles.length < 20) return 'Insufficient history';
-        const closes = candles.map(c => c.close);
-        const sma20 = closes.slice(-20).reduce((sum, value) => sum + value, 0) / 20;
-        const sma50 = closes.length >= 50
-          ? closes.slice(-50).reduce((sum, value) => sum + value, 0) / 50
-          : null;
-        const lastClose = closes.at(-1);
-        if (lastClose > sma20 && (sma50 === null || sma20 > sma50)) return 'Bullish';
-        if (lastClose < sma20 && (sma50 === null || sma20 < sma50)) return 'Bearish';
-        return 'Sideways';
-      });
-      // Entry/scorecard calculations are not yet production-validated. Do not
-      // manufacture trade recommendations from incomplete indicator data.
-      stock.match = 0; stock.entry = 'No validated setup'; stock.entryPrice = 0; stock.sl = 0; stock.target = 0; stock.rr = '—';
-      stock.score = 0; stock.freshnessScore = 0; stock.strengthScore = 0;
-      const allZones = orderedFrames.flatMap(tf => [candleFrames[tf]?.demand, candleFrames[tf]?.supply].filter(Boolean));
-      stock.baseCount = allZones.length ? Math.min(...allZones.map(zone => zone.baseCount)) : 0;
-      stock.authentic = false;
-      stock.emaW = 'Not calculated'; stock.emaM = 'Not calculated'; stock.emaMatch = 'Not calculated';
+      stock.demand = scoreFrames.map(frame => candleFrames[frame]?.demand?.state || 'No zone');
+      stock.supply = scoreFrames.map(frame => candleFrames[frame]?.supply?.state || 'No zone');
+      stock.trend = scoreFrames.map(frame => { const label = candleFrames[frame]?.pdfTrade?.trend.label; return label === 'Uptrend' ? 'Bullish' : label === 'Downtrend' ? 'Bearish' : label === 'Sideways' ? 'Neutral' : 'No data'; });
+      const active = stock.pdfTrade, zone = active?.zone;
+      stock.dataDriven = true;
+      stock.pdfDirection = active?.side || null;
+      stock.pdfLocation = active?.location?.label || 'Unknown';
+      stock.pdfTrend = active?.trend?.label || 'Insufficient data';
+      stock.pdfEntryType = active?.entryType || 'No trade · no qualifying zone';
+      stock.pdfScoreBreakdown = zone ? `Freshness ${zone.freshnessScore}/3 + Strength ${zone.strengthScore}/2 + Base ${zone.baseScore}/2` : 'No qualifying zone';
+      stock.match = 0;
+      stock.entry = stock.pdfEntryType;
+      stock.entryPrice = active?.entryLine || 0; stock.sl = active?.stopLine || 0; stock.target = active?.targetLine || 0; stock.rr = zone && active?.targetLine ? '1:2' : '—';
+      stock.score = zone?.score || 0; stock.freshnessScore = zone?.freshnessScore || 0; stock.strengthScore = zone?.strengthScore || 0; stock.strengthReason = zone?.strengthReason || ''; stock.baseCount = zone?.baseCount || 0; stock.authentic = zone?.authentic || false; stock.confirmation = active?.confirmation?.type || '';
+      stock.emaW = 'No data'; stock.emaM = 'No data'; stock.emaMatch = 'No data';
       importedStocks.push(stock);
       if (!known.has(symbol)) { stocks.push(stock); known.set(symbol, stock); }
     }
@@ -255,7 +343,7 @@
     document.querySelector('.sample-pill').textContent = '● HISTORICAL CSV · ZONES CALCULATED';
     if (saveCandlesButton) saveCandlesButton.disabled = false;
     document.querySelector('.market-pill').innerHTML = '<i></i>' + safeHtml(source);
-    note.innerHTML = '<strong>Yahoo Finance historical OHLCV connected.</strong> Demand/Supply zones and simple SMA-based trend labels are calculated from imported candles. Weekly/monthly/quarterly/half-yearly/yearly bars are grouped from daily data; the latest bar may be incomplete. Entry/SL/target, trade score, EMA scanner and index cards are not yet validated live signals and must not be treated as trade recommendations.';
+    note.innerHTML = '<strong>Historical OHLCV candles imported.</strong> PDF zone boundaries, freshness/strength/base score, entry confirmation, 50-SMA trend and curve location are calculated from these rows. Weekly/monthly groups can be incomplete. EMA/index cards remain unavailable. Gap, 50-SMA flat cutoff and overlap-based authenticity are screening approximations; this is not a trade recommendation.';
     document.querySelector('#tabs [data-view="candles"]')?.click();
     render();
     document.querySelector('#rowCount').textContent = `${bySymbol.size} symbols · historical OHLCV candles${skipped ? ` · ${skipped} invalid rows skipped` : ''}`;
@@ -266,7 +354,19 @@
   function importText(text, source) {
     const rows = parseCsv(text);
     if (rows.length === 1) {
-      throw new Error('GitHub CSV abhi empty hai. Existing screener data ko safe rakha gaya hai; data aane par auto-reload khud import karega.');
+      const headers = rows[0].map(normalize);
+      const needed = ['symbol', 'date', 'open', 'high', 'low', 'close', 'volume'];
+      if (needed.every(key => headers.includes(key))) {
+        stocks.splice(0, stocks.length);
+        if (saveCandlesButton) saveCandlesButton.disabled = true;
+        document.querySelector('.sample-pill').textContent = '● CSV TEMPLATE · NO MARKET DATA';
+        document.querySelector('.market-pill').innerHTML = '<i></i>' + safeHtml(source);
+        note.innerHTML = '<strong>CSV template connected, but it has no candle rows yet.</strong> Add verified OHLCV rows to GitHub before expecting prices or Zone Analysis.';
+        document.querySelector('#tabs [data-view="candles"]')?.click();
+        render();
+        message('CSV headings found; no market rows yet');
+        return;
+      }
     }
     if (rows.length < 2) throw new Error('CSV mein header aur kam se kam ek data row chahiye.');
     if (importCandleRows(rows, source)) return;
@@ -305,17 +405,13 @@
     finally { fileInput.value = ''; }
   });
 
-  const DEFAULT_CSV_URL = 'https://raw.githubusercontent.com/expert-gyasho/shivshakti-screener-data/main/candles.csv';
-
   async function loadGithubCsv(isAuto = false) {
     const original = loadButton.textContent;
     if (loadButton.disabled) return;
     loadButton.disabled = true; loadButton.textContent = 'Loading…';
     try {
-      const chosenUrl = urlInput.value.trim() || DEFAULT_CSV_URL;
-      const url = rawGithubUrl(chosenUrl);
-      if (urlInput && !urlInput.value.trim()) urlInput.value = DEFAULT_CSV_URL;
-      localStorage.setItem('shivshakti-csv-url', chosenUrl);
+      const url = rawGithubUrl(urlInput.value.trim());
+      localStorage.setItem('shivshakti-csv-url', urlInput.value.trim());
       const response = await fetch(url, { cache: 'no-store' });
       if (!response.ok) throw new Error(`GitHub CSV load failed (${response.status}).`);
       importText(await response.text(), `GitHub CSV · ${new Date().toLocaleTimeString('en-IN')}`);
@@ -326,17 +422,15 @@
 
   try {
     const savedUrl = localStorage.getItem('shivshakti-csv-url');
-    if (urlInput) urlInput.value = savedUrl || DEFAULT_CSV_URL;
-    const savedAutoReload = localStorage.getItem('shivshakti-csv-auto-reload-v3');
-    // Enable the GitHub market CSV automatically in a fresh browser; checkbox can turn it off.
-    const enabled = savedAutoReload !== 'false';
+    if (savedUrl && urlInput) urlInput.value = savedUrl;
+    const enabled = localStorage.getItem('shivshakti-csv-auto-reload') === 'true';
     if (autoReload) autoReload.checked = enabled;
   } catch { /* Browser privacy settings may disable local storage. */ }
   urlInput?.addEventListener('change', () => {
     try { localStorage.setItem('shivshakti-csv-url', urlInput.value.trim()); } catch { /* Optional preference only. */ }
   });
   autoReload?.addEventListener('change', () => {
-    try { localStorage.setItem('shivshakti-csv-auto-reload-v3', String(autoReload.checked)); } catch { /* Optional preference only. */ }
+    try { localStorage.setItem('shivshakti-csv-auto-reload', String(autoReload.checked)); } catch { /* Optional preference only. */ }
     if (autoReload.checked) loadGithubCsv();
     message(autoReload.checked ? 'Auto-reload on: public CSV har 5 minute mein dobara load hogi.' : 'Auto-reload off.');
   });
@@ -364,3 +458,5 @@
     if (autoReload?.checked && !document.hidden) loadGithubCsv(true);
   }, 5 * 60 * 1000);
 })();
+
+
