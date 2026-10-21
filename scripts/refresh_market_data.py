@@ -33,7 +33,7 @@ UNIVERSE_URL = os.getenv(
 )
 CHUNK_SIZE = int(os.getenv("DOWNLOAD_CHUNK_SIZE", "40"))
 DAILY_PERIOD = os.getenv("DAILY_PERIOD", "5y")
-INTRADAY_PERIOD = os.getenv("INTRADAY_PERIOD", "5d")
+INTRADAY_PERIOD = os.getenv("INTRADAY_PERIOD", "1mo")
 USER_AGENT = "Mozilla/5.0 ShivshaktiTraderDataPipeline/1.0"
 
 
@@ -255,14 +255,16 @@ def main() -> int:
 
         iframe = intraday.get(ticker, pd.DataFrame())
         if not iframe.empty:
-            # Keep the latest trading date only to avoid bloating the Git repo.
+            # Keep one month of recent intraday candles. The browser aggregates these
+            # into 75-minute bars; its 50-SMA trend needs 57 bars (about 12 sessions).
+            # A one-month 15-minute request stays within Yahoo's 60-day intraday limit.
             local_index = iframe.index
             if getattr(local_index, "tz", None) is not None:
                 local_index = local_index.tz_convert("Asia/Kolkata")
                 iframe = iframe.copy()
                 iframe.index = local_index
-            latest_day = iframe.index[-1].date()
-            recent = iframe.loc[[idx.date() == latest_day for idx in iframe.index]]
+            lookback_start = iframe.index[-1] - pd.Timedelta(days=30)
+            recent = iframe.loc[iframe.index >= lookback_start]
             intraday_rows.extend(rows_for_timeframe(symbol, recent, "15-Minute"))
 
     def safe_write_csv(rows: list[dict], path: Path, columns: list[str]) -> None:
