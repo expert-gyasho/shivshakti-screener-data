@@ -11,17 +11,19 @@
   ],
   "daily_period": "5y",
   "intraday_period": "1mo",
-  "last_successful_run_utc": "2026-10-21T18:32:27.968158+00:00",
-  "duration_seconds": 110.1,
+  "last_successful_run_utc": "2026-10-21T18:36:42.017034+00:00",
+  "duration_seconds": 163.4,
   "timeframe_rows": {
     "Daily": 491893,
     "Weekly": 104146,
     "Monthly": 24288,
     "Quarterly": 8458,
     "Half-Yearly": 4491,
-    "Yearly": 2469
+    "Yearly": 2469,
+    "15-Minute": 247735
   },
   "timeframes_validated": [
+    "15-Minute",
     "Daily",
     "Half-Yearly",
     "Monthly",
@@ -30,7 +32,7 @@
     "Yearly"
   ],
   "csv_rows": {
-    "candles.csv": 635745,
+    "candles.csv": 883480,
     "data/daily_ohlcv.csv": 491893,
     "data/intraday_15m.csv": 247735
   },
