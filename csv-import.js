@@ -212,7 +212,7 @@
 
   function deriveIntradayCandles(sourceCandles, minutes) {
     const buckets = new Map();
-    for (const candle of sourceCandles) {
+    for (const candle of [...sourceCandles].sort((a, b) => a.date.localeCompare(b.date))) {
       const match = String(candle.date).match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/);
       if (!match) continue;
       const minuteOfDay = Number(match[2]) * 60 + Number(match[3]);
