@@ -174,7 +174,7 @@
     const trend = trendFromGyan(candles);
     const location = curveLocation(price, demand, supply);
     let side = forcedSide || (location.label.startsWith('Low') ? 'demand' : location.label.startsWith('High') ? 'supply' : trend.label === 'Uptrend' ? 'demand' : trend.label === 'Downtrend' ? 'supply' : null);
-    if (!demand && !supply) side = null;
+    if (!demand && !supply && !forcedSide) side = null;
     const zone = side === 'demand' ? (demand || (forcedSide === 'demand' ? analysis.demand : null)) : side === 'supply' ? (supply || (forcedSide === 'supply' ? analysis.supply : null)) : [analysis.demand, analysis.supply].filter(Boolean).sort((a,b) => b.score-a.score)[0] || null;
     const confirmation = latestConfirmation(candles, zone);
     let entryType = forcedSide && !zone ? 'No trade · no ' + forcedSide + ' zone' : 'No trade · trend/location not confirmed';
