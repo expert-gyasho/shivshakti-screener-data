@@ -13,7 +13,7 @@
   }
   if (!fileInput || !openButton || !note) return;
 
-  const safeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const safeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&','<':'<','>':'>','"':'"',"'":'''}[c]));
   const normalize = value => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   const aliases = {
     symbol: ['symbol', 'ticker', 'tradingsymbol', 'security', 'tckrsymb'],
@@ -139,7 +139,7 @@
     return null;
   }
 
-  function trendFromPdf(candles) {
+  function trendFromGyan(candles) {
     if (candles.length < 57) return { label: 'Insufficient 57 candles', slopePercent: null };
     const averageAt = end => candles.slice(end - 49, end + 1).reduce((sum, candle) => sum + candle.close, 0) / 50;
     const now = averageAt(candles.length - 1), then = averageAt(candles.length - 8);
@@ -164,11 +164,11 @@
     return { label: 'Equilibrium', ratio };
   }
 
-  function pdfTradeData(analysis, candles) {
+  function gyanTradeData(analysis, candles) {
     const price = analysis.latest.close;
     const demand = closestZone(analysis.demandZones, price);
     const supply = closestZone(analysis.supplyZones, price);
-    const trend = trendFromPdf(candles);
+    const trend = trendFromGyan(candles);
     const location = curveLocation(price, demand, supply);
     let side = location.label.startsWith('Low') ? 'demand' : location.label.startsWith('High') ? 'supply' : trend.label === 'Uptrend' ? 'demand' : trend.label === 'Downtrend' ? 'supply' : null;
     if (!demand && !supply) side = null;
@@ -202,7 +202,7 @@
       candleType: last.type, bodyPercent: last.bodyPct, demandZones, supplyZones,
       demand: demandZones.at(-1) || null, supply: supplyZones.at(-1) || null
     };
-    result.pdfTrade = pdfTradeData(result, candles);
+    result.gyanTrade = gyanTradeData(result, candles);
     return result;
   }
 
@@ -312,9 +312,9 @@
       stock.importedTimeframes = sourceFrames.get(symbol) || Object.keys(candleFrames);
       const preferred = candleFrames.Daily || candleFrames.Weekly || candleFrames.Monthly || Object.values(candleFrames)[0];
       const scoreFrames = ['Daily', 'Weekly', 'Monthly', 'Quarterly', 'Half-Yearly', 'Yearly'];
-      stock.pdfByTimeframe = Object.fromEntries(scoreFrames.filter(frame => candleFrames[frame]).map(frame => [frame, candleFrames[frame].pdfTrade]));
+      stock.gyanByTimeframe = Object.fromEntries(scoreFrames.filter(frame => candleFrames[frame]).map(frame => [frame, candleFrames[frame].gyanTrade]));
       stock.analysisTimeframe = candleFrames.Daily ? 'Daily' : candleFrames.Weekly ? 'Weekly' : candleFrames.Monthly ? 'Monthly' : Object.keys(candleFrames)[0];
-      stock.pdfTrade = stock.pdfByTimeframe[stock.analysisTimeframe] || preferred.pdfTrade;
+      stock.gyanTrade = stock.gyanByTimeframe[stock.analysisTimeframe] || preferred.gyanTrade;
       stock.price = preferred.latest.close;
       stock.change = preferred.change;
       stock.candleType = preferred.candleType;
@@ -323,16 +323,16 @@
       stock.historicalSource = source;
       stock.demand = scoreFrames.map(frame => candleFrames[frame]?.demand?.state || 'No zone');
       stock.supply = scoreFrames.map(frame => candleFrames[frame]?.supply?.state || 'No zone');
-      stock.trend = scoreFrames.map(frame => { const label = candleFrames[frame]?.pdfTrade?.trend.label; return label === 'Uptrend' ? 'Bullish' : label === 'Downtrend' ? 'Bearish' : label === 'Sideways' ? 'Neutral' : 'No data'; });
-      const active = stock.pdfTrade, zone = active?.zone;
+      stock.trend = scoreFrames.map(frame => { const label = candleFrames[frame]?.gyanTrade?.trend.label; return label === 'Uptrend' ? 'Bullish' : label === 'Downtrend' ? 'Bearish' : label === 'Sideways' ? 'Neutral' : 'No data'; });
+      const active = stock.gyanTrade, zone = active?.zone;
       stock.dataDriven = true;
-      stock.pdfDirection = active?.side || null;
-      stock.pdfLocation = active?.location?.label || 'Unknown';
-      stock.pdfTrend = active?.trend?.label || 'Insufficient data';
-      stock.pdfEntryType = active?.entryType || 'No trade · no qualifying zone';
-      stock.pdfScoreBreakdown = zone ? `Freshness ${zone.freshnessScore}/3 + Strength ${zone.strengthScore}/2 + Base ${zone.baseScore}/2` : 'No qualifying zone';
+      stock.gyanDirection = active?.side || null;
+      stock.gyanLocation = active?.location?.label || 'Unknown';
+      stock.gyanTrend = active?.trend?.label || 'Insufficient data';
+      stock.gyanEntryType = active?.entryType || 'No trade · no qualifying zone';
+      stock.gyanScoreBreakdown = zone ? `Freshness ${zone.freshnessScore}/3 + Strength ${zone.strengthScore}/2 + Base ${zone.baseScore}/2` : 'No qualifying zone';
       stock.match = 0;
-      stock.entry = stock.pdfEntryType;
+      stock.entry = stock.gyanEntryType;
       stock.entryPrice = active?.entryLine || 0; stock.sl = active?.stopLine || 0; stock.target = active?.targetLine || 0; stock.rr = zone && active?.targetLine ? '1:2' : '—';
       stock.score = zone?.score || 0; stock.freshnessScore = zone?.freshnessScore || 0; stock.strengthScore = zone?.strengthScore || 0; stock.strengthReason = zone?.strengthReason || ''; stock.baseCount = zone?.baseCount || 0; stock.authentic = zone?.authentic || false; stock.confirmation = active?.confirmation?.type || '';
       stock.emaW = 'No data'; stock.emaM = 'No data'; stock.emaMatch = 'No data';
@@ -343,7 +343,7 @@
     document.querySelector('.sample-pill').textContent = '● HISTORICAL CSV · ZONES CALCULATED';
     if (saveCandlesButton) saveCandlesButton.disabled = false;
     document.querySelector('.market-pill').innerHTML = '<i></i>' + safeHtml(source);
-    note.innerHTML = '<strong>Historical OHLCV candles imported.</strong> PDF zone boundaries, freshness/strength/base score, entry confirmation, 50-SMA trend and curve location are calculated from these rows. Weekly/monthly groups can be incomplete. EMA/index cards remain unavailable. Gap, 50-SMA flat cutoff and overlap-based authenticity are screening approximations; this is not a trade recommendation.';
+    note.innerHTML = '<strong>Historical OHLCV candles imported.</strong> Gyan zone boundaries, freshness/strength/base score, entry confirmation, 50-SMA trend and curve location are calculated from these rows. Weekly/monthly groups can be incomplete. EMA/index cards remain unavailable. Gap, 50-SMA flat cutoff and overlap-based authenticity are screening approximations; this is not a trade recommendation.';
     document.querySelector('#tabs [data-view="candles"]')?.click();
     render();
     document.querySelector('#rowCount').textContent = `${bySymbol.size} symbols · historical OHLCV candles${skipped ? ` · ${skipped} invalid rows skipped` : ''}`;
@@ -362,7 +362,7 @@
         document.querySelector('.sample-pill').textContent = '● CSV TEMPLATE · NO MARKET DATA';
         document.querySelector('.market-pill').innerHTML = '<i></i>' + safeHtml(source);
         note.innerHTML = '<strong>CSV template connected, but it has no candle rows yet.</strong> Add verified OHLCV rows to GitHub before expecting prices or Zone Analysis.';
-        document.querySelector('#tabs [data-view="candles"]')?.click();
+        document.queryestor('#tabs [data-view="candles"]')?.click();
         render();
         message('CSV headings found; no market rows yet');
         return;
@@ -458,5 +458,3 @@
     if (autoReload?.checked && !document.hidden) loadGithubCsv(true);
   }, 5 * 60 * 1000);
 })();
-
-
