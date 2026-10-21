@@ -175,9 +175,9 @@
     const location = curveLocation(price, demand, supply);
     let side = forcedSide || (location.label.startsWith('Low') ? 'demand' : location.label.startsWith('High') ? 'supply' : trend.label === 'Uptrend' ? 'demand' : trend.label === 'Downtrend' ? 'supply' : null);
     if (!demand && !supply) side = null;
-    const zone = side === 'demand' ? demand : side === 'supply' ? supply : [analysis.demand, analysis.supply].filter(Boolean).sort((a,b) => b.score-a.score)[0] || null;
+    const zone = side === 'demand' ? (demand || (forcedSide === 'demand' ? analysis.demand : null)) : side === 'supply' ? (supply || (forcedSide === 'supply' ? analysis.supply : null)) : [analysis.demand, analysis.supply].filter(Boolean).sort((a,b) => b.score-a.score)[0] || null;
     const confirmation = latestConfirmation(candles, zone);
-    let entryType = 'No trade · trend/location not confirmed';
+    let entryType = forcedSide && !zone ? 'No trade · no ' + forcedSide + ' zone' : 'No trade · trend/location not confirmed';
     if (zone) {
       if (!zone.authentic) entryType = 'No trade · non-authentic zone';
       else if (zone.score < 5) entryType = 'No trade · score below 5';
