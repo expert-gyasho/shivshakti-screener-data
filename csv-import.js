@@ -8,8 +8,8 @@
   const autoReload = document.querySelector('#autoReloadCsv');
   const note = document.querySelector('#dataNote');
   const timeframeFilter = document.querySelector('#frameFilter');
-  if (timeframeFilter && ![...timeframeFilter.options].some(option => option.value === 'intraday')) {
-    timeframeFilter.add(new Option('15-minute', 'intraday'));
+  if (timeframeFilter && ![...timeframeFilter.options].some(option => option.value === '15-minute')) {
+    timeframeFilter.add(new Option('15-minute', '15-minute'));
   }
   if (!fileInput || !openButton || !note) return;
 
@@ -164,13 +164,13 @@
     return { label: 'Equilibrium', ratio };
   }
 
-  function gyanTradeData(analysis, candles) {
+  function gyanTradeData(analysis, candles, forcedSide = null) {
     const price = analysis.latest.close;
     const demand = closestZone(analysis.demandZones, price);
     const supply = closestZone(analysis.supplyZones, price);
     const trend = trendFromGyan(candles);
     const location = curveLocation(price, demand, supply);
-    let side = location.label.startsWith('Low') ? 'demand' : location.label.startsWith('High') ? 'supply' : trend.label === 'Uptrend' ? 'demand' : trend.label === 'Downtrend' ? 'supply' : null;
+    let side = forcedSide || (location.label.startsWith('Low') ? 'demand' : location.label.startsWith('High') ? 'supply' : trend.label === 'Uptrend' ? 'demand' : trend.label === 'Downtrend' ? 'supply' : null);
     if (!demand && !supply) side = null;
     const zone = side === 'demand' ? demand : side === 'supply' ? supply : [analysis.demand, analysis.supply].filter(Boolean).sort((a,b) => b.score-a.score)[0] || null;
     const confirmation = latestConfirmation(candles, zone);
@@ -203,7 +203,27 @@
       demand: demandZones.at(-1) || null, supply: supplyZones.at(-1) || null
     };
     result.gyanTrade = gyanTradeData(result, candles);
+    result.gyanBySide = { demand: gyanTradeData(result, candles, 'demand'), supply: gyanTradeData(result, candles, 'supply') };
     return result;
+  }
+
+  function deriveIntradayCandles(sourceCandles, minutes) {
+    const buckets = new Map();
+    for (const candle of sourceCandles) {
+      const match = String(candle.date).match(/^(\\d{4}-\\d{2}-\\d{2})[ T](\\d{2}):(\\d{2})/);
+      if (!match) continue;
+      const minuteOfDay = Number(match[2]) * 60 + Number(match[3]);
+      const offset = minuteOfDay - 555;
+      if (offset < 0 || offset >= 375) continue;
+      const bucket = Math.floor(offset / minutes);
+      const key = match[1] + '|' + bucket;
+      const startMinute = 555 + bucket * minutes;
+      const start = match[1] + ' ' + String(Math.floor(startMinute / 60)).padStart(2, '0') + ':' + String(startMinute % 60).padStart(2, '0');
+      const current = buckets.get(key);
+      if (!current) buckets.set(key, { open: candle.open, high: candle.high, low: candle.low, close: candle.close, volume: candle.volume, date: start });
+      else { current.high = Math.max(current.high, candle.high); current.low = Math.min(current.low, candle.low); current.close = candle.close; current.volume += candle.volume; }
+    }
+    return [...buckets.values()];
   }
 
   function deriveCandles(dailyCandles, timeframe) {
@@ -298,6 +318,16 @@
     }
     const sourceFrames = new Map([...bySymbol].map(([symbol, frames]) => [symbol, Object.keys(frames)]));
     for (const candleFrames of bySymbol.values()) {
+      const fifteenMinute = candleFrames['15-minute']?.candles;
+      if (fifteenMinute?.length) {
+        for (const minutes of [75, 125, 275]) {
+          const frame = String(minutes) + '-minute';
+          if (!candleFrames[frame]) {
+            const aggregated = deriveIntradayCandles(fifteenMinute, minutes);
+            if (aggregated.length) candleFrames[frame] = analyze(aggregated);
+          }
+        }
+      }
       const daily = candleFrames.Daily?.candles;
       if (!daily?.length) continue;
       for (const timeframe of ['Weekly', 'Monthly', 'Quarterly', 'Half-Yearly', 'Yearly']) {
@@ -312,7 +342,9 @@
       stock.importedTimeframes = sourceFrames.get(symbol) || Object.keys(candleFrames);
       const preferred = candleFrames.Daily || candleFrames.Weekly || candleFrames.Monthly || Object.values(candleFrames)[0];
       const scoreFrames = ['Daily', 'Weekly', 'Monthly', 'Quarterly', 'Half-Yearly', 'Yearly'];
-      stock.gyanByTimeframe = Object.fromEntries(scoreFrames.filter(frame => candleFrames[frame]).map(frame => [frame, candleFrames[frame].gyanTrade]));
+      const tradeFrames = [...scoreFrames, '15-minute', '75-minute', '125-minute', '275-minute'];
+      stock.gyanByTimeframe = Object.fromEntries(tradeFrames.filter(frame => candleFrames[frame]).map(frame => [frame, candleFrames[frame].gyanTrade]));
+      stock.gyanByTimeframeAndSide = Object.fromEntries(tradeFrames.filter(frame => candleFrames[frame]).map(frame => [frame, candleFrames[frame].gyanBySide]));
       stock.analysisTimeframe = candleFrames.Daily ? 'Daily' : candleFrames.Weekly ? 'Weekly' : candleFrames.Monthly ? 'Monthly' : Object.keys(candleFrames)[0];
       stock.gyanTrade = stock.gyanByTimeframe[stock.analysisTimeframe] || preferred.gyanTrade;
       stock.price = preferred.latest.close;
