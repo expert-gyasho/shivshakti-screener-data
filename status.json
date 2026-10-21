@@ -11,8 +11,8 @@
   ],
   "daily_period": "5y",
   "intraday_period": "5d",
-  "last_successful_run_utc": "2026-10-21T14:49:19.212574+00:00",
-  "duration_seconds": 100.6,
+  "last_successful_run_utc": "2026-10-21T18:25:52.654536+00:00",
+  "duration_seconds": 111.5,
   "timeframe_rows": {
     "Daily": 491893,
     "Weekly": 104146,
