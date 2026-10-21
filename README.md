@@ -7,9 +7,9 @@ This repository stores OHLCV data for the Shivshakti Trader dashboard and its de
 GitHub Actions is configured to run approximately every 15 minutes during the weekday NSE market-session window. Scheduled runs can be delayed. You can also run it manually from **Actions → Refresh Shivshakti Market Data → Run workflow**.
 
 Files produced:
-- `candles.csv` — scanner-ready OHLCV with Daily, Weekly, Monthly, Quarterly, Half-Yearly and Yearly rows.
-- `data/daily_ohlcv.csv` — daily OHLCV history.
-- `data/intraday_15m.csv` — latest available trading day's 15-minute candles.
+- `candles.csv.gz` — compressed scanner-ready OHLCV; includes maximum available Daily history, derived higher-timeframe rows, and the latest month of 15-minute candles.
+- `data/daily_ohlcv.csv.gz` — compressed daily OHLCV history.
+- `data/intraday_15m.csv` — latest month of 15-minute candles.
 - `status.json` — last run time, symbol counts, row counts and warnings.
 
 ## Data source and limitations
@@ -26,8 +26,8 @@ python scripts/refresh_market_data.py
 ```
 
 Optional environment settings:
-- `DAILY_PERIOD` (default `5y`)
-- `INTRADAY_PERIOD` (default `5d`)
+- `DAILY_PERIOD` (default `max`, provider's maximum available daily history)
+- `INTRADAY_PERIOD` (default `1mo`)
 - `DOWNLOAD_CHUNK_SIZE` (default `40`)
 - `NIFTY500_CSV_URL` (override the universe CSV URL)
 

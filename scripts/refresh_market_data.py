@@ -23,9 +23,11 @@ import yfinance as yf
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
 DATA_DIR.mkdir(exist_ok=True)
-CANDLES_PATH = ROOT / "candles.csv"
+CANDLES_PATH = ROOT / "candles.csv.gz"
+LEGACY_CANDLES_PATH = ROOT / "candles.csv"
 INTRADAY_PATH = DATA_DIR / "intraday_15m.csv"
-DAILY_PATH = DATA_DIR / "daily_ohlcv.csv"
+DAILY_PATH = DATA_DIR / "daily_ohlcv.csv.gz"
+LEGACY_DAILY_PATH = DATA_DIR / "daily_ohlcv.csv"
 STATUS_PATH = ROOT / "status.json"
 UNIVERSE_URL = os.getenv(
     "NIFTY500_CSV_URL",
@@ -183,9 +185,10 @@ def main() -> int:
     # Later scheduled runs fetch only recent bars and merge them into that full
     # history so lifetime backfill is not repeated every 15 minutes.
     existing_daily: dict[str, pd.DataFrame] = {}
-    if DAILY_PATH.exists() and DAILY_PATH.stat().st_size > 20:
+    daily_source_path = DAILY_PATH if DAILY_PATH.exists() else LEGACY_DAILY_PATH
+    if daily_source_path.exists() and daily_source_path.stat().st_size > 20:
         try:
-            saved = pd.read_csv(DAILY_PATH)
+            saved = pd.read_csv(daily_source_path)
             if {"symbol", "date", "open", "high", "low", "close", "volume"}.issubset(saved.columns):
                 saved["date"] = pd.to_datetime(saved["date"], errors="coerce")
                 saved = saved.dropna(subset=["date"])
@@ -295,7 +298,8 @@ def main() -> int:
                 pd.DataFrame(columns=columns).to_csv(path, index=False)
             return
         temp = path.with_suffix(path.suffix + ".tmp")
-        pd.DataFrame(rows, columns=columns).to_csv(temp, index=False)
+        compression = "gzip" if path.suffix == ".gz" else None
+        pd.DataFrame(rows, columns=columns).to_csv(temp, index=False, compression=compression)
         if temp.stat().st_size == 0:
             raise RuntimeError(f"Refusing to replace {path.name} with an empty file.")
         temp.replace(path)
@@ -328,6 +332,9 @@ def main() -> int:
     safe_write_csv(scanner_rows, CANDLES_PATH, columns)
     safe_write_csv(daily_rows, DAILY_PATH, columns)
     safe_write_csv(intraday_rows, INTRADAY_PATH, columns)
+    for legacy_path in (LEGACY_CANDLES_PATH, LEGACY_DAILY_PATH):
+        if legacy_path.exists():
+            legacy_path.unlink()
 
     finished = datetime.now(timezone.utc)
     status = {
@@ -347,9 +354,9 @@ def main() -> int:
         "timeframe_rows": timeframe_counts,
         "timeframes_validated": sorted(present_timeframes),
         "csv_rows": {
-            "candles.csv": len(scanner_rows),
-            "data/daily_ohlcv.csv": len(daily_rows),
-            "data/intraday_15m.csv": len(intraday_rows),
+            CANDLES_PATH.name: len(scanner_rows),
+            str(DAILY_PATH.relative_to(ROOT)): len(daily_rows),
+            str(INTRADAY_PATH.relative_to(ROOT)): len(intraday_rows),
         },
         "warning": "Unofficial market data; verify accuracy and data-use permissions before trading or redistribution.",
     }
