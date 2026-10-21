@@ -423,8 +423,11 @@
   try {
     const savedUrl = localStorage.getItem('shivshakti-csv-url');
     if (savedUrl && urlInput) urlInput.value = savedUrl;
-    const enabled = localStorage.getItem('shivshakti-csv-auto-reload') === 'true';
+    const savedAutoReload = localStorage.getItem('shivshakti-csv-auto-reload');
+    // Live CSV loading and five-minute refresh are enabled by default.
+    const enabled = savedAutoReload === null ? true : savedAutoReload === 'true';
     if (autoReload) autoReload.checked = enabled;
+    if (savedAutoReload === null) localStorage.setItem('shivshakti-csv-auto-reload', 'true');
   } catch { /* Browser privacy settings may disable local storage. */ }
   urlInput?.addEventListener('change', () => {
     try { localStorage.setItem('shivshakti-csv-url', urlInput.value.trim()); } catch { /* Optional preference only. */ }
