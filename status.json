@@ -9,17 +9,19 @@
     "BAGMANE",
     "DUMMYHEG"
   ],
-  "daily_period": "5y",
+  "daily_period": "max",
+  "daily_history_period": "max",
+  "daily_fetch_period": "max",
   "intraday_period": "1mo",
-  "last_successful_run_utc": "2026-10-21T18:36:42.017034+00:00",
-  "duration_seconds": 163.4,
+  "last_successful_run_utc": "2026-10-21T19:12:57.743443+00:00",
+  "duration_seconds": 454.5,
   "timeframe_rows": {
-    "Daily": 491893,
-    "Weekly": 104146,
-    "Monthly": 24288,
-    "Quarterly": 8458,
-    "Half-Yearly": 4491,
-    "Yearly": 2469,
+    "Daily": 2012488,
+    "Weekly": 423856,
+    "Monthly": 97724,
+    "Quarterly": 33032,
+    "Half-Yearly": 16922,
+    "Yearly": 8460,
     "15-Minute": 247735
   },
   "timeframes_validated": [
@@ -32,8 +34,8 @@
     "Yearly"
   ],
   "csv_rows": {
-    "candles.csv": 883480,
-    "data/daily_ohlcv.csv": 491893,
+    "candles.csv.gz": 2840217,
+    "data/daily_ohlcv.csv.gz": 2012488,
     "data/intraday_15m.csv": 247735
   },
   "warning": "Unofficial market data; verify accuracy and data-use permissions before trading or redistribution."
