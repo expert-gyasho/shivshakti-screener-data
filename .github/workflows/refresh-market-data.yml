@@ -58,7 +58,7 @@ jobs:
             for attempt in 1 2 3 4 5; do
               git fetch origin main
               git reset origin/main
-              git add candles.csv data/ status.json
+              git add candles.csv candles.csv.gz data/ status.json
               if git diff --cached --quiet; then
                 echo "No data changes to commit."
                 exit 0
