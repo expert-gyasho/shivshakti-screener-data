@@ -265,7 +265,9 @@ def main() -> int:
                 iframe.index = local_index
             lookback_start = iframe.index[-1] - pd.Timedelta(days=30)
             recent = iframe.loc[iframe.index >= lookback_start]
-            intraday_rows.extend(rows_for_timeframe(symbol, recent, "15-Minute"))
+            recent_rows = rows_for_timeframe(symbol, recent, "15-Minute")
+            intraday_rows.extend(recent_rows)
+            scanner_rows.extend(recent_rows)
 
     def safe_write_csv(rows: list[dict], path: Path, columns: list[str]) -> None:
         if not rows:
