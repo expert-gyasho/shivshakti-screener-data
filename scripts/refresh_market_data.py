@@ -32,7 +32,7 @@ UNIVERSE_URL = os.getenv(
     "https://archives.nseindia.com/content/indices/ind_nifty500list.csv",
 )
 CHUNK_SIZE = int(os.getenv("DOWNLOAD_CHUNK_SIZE", "40"))
-DAILY_PERIOD = os.getenv("DAILY_PERIOD", "5y")
+DAILY_PERIOD = os.getenv("DAILY_PERIOD", "max")
 INTRADAY_PERIOD = os.getenv("INTRADAY_PERIOD", "1mo")
 USER_AGENT = "Mozilla/5.0 ShivshaktiTraderDataPipeline/1.0"
 
@@ -178,10 +178,10 @@ def main() -> int:
     tickers = get_symbols()
     print(f"Universe contains {len(tickers)} NIFTY 500 symbols")
 
-    # Download full daily history only for the first successful bootstrap.
-    # On later 15-minute runs, fetch the recent daily bars and merge them into
-    # stored history so the long-term scanners keep their historical candles
-    # without re-downloading five years for every run.
+    # Download the provider's maximum available daily history once, including
+    # for existing installations that were previously bootstrapped with 5y.
+    # Later scheduled runs fetch only recent bars and merge them into that full
+    # history so lifetime backfill is not repeated every 15 minutes.
     existing_daily: dict[str, pd.DataFrame] = {}
     if DAILY_PATH.exists() and DAILY_PATH.stat().st_size > 20:
         try:
@@ -197,9 +197,28 @@ def main() -> int:
         except Exception as exc:
             print(f"Could not reuse stored daily history; will bootstrap full history: {exc}", file=sys.stderr)
 
-    daily_fetch_period = "5d" if existing_daily else DAILY_PERIOD
-    print(f"Daily history mode: {'incremental merge' if existing_daily else 'initial full-history bootstrap'} (download period={daily_fetch_period})")
-    daily = download_history(tickers, daily_fetch_period, "1d")
+    previous_status = {}
+    if STATUS_PATH.exists():
+        try:
+            previous_status = json.loads(STATUS_PATH.read_text(encoding="utf-8"))
+        except Exception as exc:
+            print(f"Could not read prior data status; will re-check full history: {exc}", file=sys.stderr)
+    stored_history_period = previous_status.get("daily_history_period", previous_status.get("daily_period"))
+    needs_full_backfill = stored_history_period != DAILY_PERIOD
+    daily_fetch_period = "5d" if existing_daily and not needs_full_backfill else DAILY_PERIOD
+    daily_mode = "incremental merge" if daily_fetch_period == "5d" else "full-history backfill"
+    print(f"Daily history mode: {daily_mode} (download period={daily_fetch_period})")
+    downloaded_daily = download_history(tickers, daily_fetch_period, "1d")
+    if daily_fetch_period == DAILY_PERIOD:
+        full_coverage = len(downloaded_daily) / max(len(tickers), 1)
+        min_full_coverage = float(os.getenv("MIN_FULL_HISTORY_COVERAGE", "0.90"))
+        print(f"Full-history coverage: {len(downloaded_daily)}/{len(tickers)} ({full_coverage:.1%}); minimum required: {min_full_coverage:.1%}")
+        if full_coverage < min_full_coverage:
+            raise RuntimeError(
+                f"Full-history backfill reached only {full_coverage:.1%} of symbols; "
+                "existing published CSVs were not replaced."
+            )
+    daily = downloaded_daily
     # Merge recent bars over stored history, retaining all earlier bars.
     for ticker, old_frame in existing_daily.items():
         new_frame = daily.get(ticker, pd.DataFrame())
@@ -320,6 +339,8 @@ def main() -> int:
         "intraday_symbols_received": len(intraday),
         "failed_daily_symbols": failed_symbols,
         "daily_period": DAILY_PERIOD,
+        "daily_history_period": DAILY_PERIOD,
+        "daily_fetch_period": daily_fetch_period,
         "intraday_period": INTRADAY_PERIOD,
         "last_successful_run_utc": finished.isoformat(),
         "duration_seconds": round((finished - started).total_seconds(), 1),
