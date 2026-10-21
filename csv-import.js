@@ -65,6 +65,9 @@
   function frameName(value) {
     const n = normalize(value || 'daily');
     if (['15m', '15min', '15minute', 'intraday'].includes(n)) return '15-minute';
+    if (['75m', '75min', '75minute'].includes(n)) return '75-minute';
+    if (['125m', '125min', '125minute'].includes(n)) return '125-minute';
+    if (['275m', '275min', '275minute'].includes(n)) return '275-minute';
     if (['1d', 'd', 'day', 'daily'].includes(n)) return 'Daily';
     if (['1w', 'w', 'week', 'weekly'].includes(n)) return 'Weekly';
     if (['1mo', 'mo', 'month', 'monthly'].includes(n)) return 'Monthly';
