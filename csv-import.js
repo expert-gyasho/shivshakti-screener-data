@@ -13,7 +13,7 @@
   }
   if (!fileInput || !openButton || !note) return;
 
-  const safeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&','<':'<','>':'>','"':'"',"'":'''}[c]));
+  const safeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const normalize = value => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   const aliases = {
     symbol: ['symbol', 'ticker', 'tradingsymbol', 'security', 'tckrsymb'],
