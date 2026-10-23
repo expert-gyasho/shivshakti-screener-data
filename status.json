@@ -3,7 +3,7 @@
   "provider": "Yahoo Finance via yfinance (unofficial; prototype only)",
   "universe": "NIFTY 500",
   "symbols_requested": 501,
-  "daily_symbols_received": 500,
+  "daily_symbols_received": 499,
   "intraday_symbols_received": 497,
   "failed_daily_symbols": [
     "BAGMANE",
@@ -13,8 +13,8 @@
   "daily_history_period": "max",
   "daily_fetch_period": "5d",
   "intraday_period": "1mo",
-  "last_successful_run_utc": "2026-10-23T14:23:37.805213+00:00",
-  "duration_seconds": 289.4,
+  "last_successful_run_utc": "2026-10-23T14:41:57.451952+00:00",
+  "duration_seconds": 457.9,
   "timeframe_rows": {
     "Daily": 2011497,
     "Weekly": 423331,
