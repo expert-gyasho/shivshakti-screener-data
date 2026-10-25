@@ -474,10 +474,14 @@
       localStorage.setItem('shivshakti-csv-url', lifetimeUrl);
     } else if (savedUrl && urlInput) urlInput.value = savedUrl;
     const savedAutoReload = localStorage.getItem('shivshakti-csv-auto-reload');
-    // Live CSV loading and five-minute refresh are enabled by default.
-    const enabled = savedAutoReload === null ? true : savedAutoReload === 'true';
+    const autoReloadPreferenceVersion = localStorage.getItem('shivshakti-csv-auto-reload-v2');
+    // The 48 MB compressed history file is opt-in so first page load stays responsive.
+    const enabled = autoReloadPreferenceVersion === 'true' && savedAutoReload === 'true';
     if (autoReload) autoReload.checked = enabled;
-    if (savedAutoReload === null) localStorage.setItem('shivshakti-csv-auto-reload', 'true');
+    if (autoReloadPreferenceVersion !== 'true') {
+      localStorage.setItem('shivshakti-csv-auto-reload', 'false');
+      localStorage.setItem('shivshakti-csv-auto-reload-v2', 'true');
+    }
   } catch { /* Browser privacy settings may disable local storage. */ }
   urlInput?.addEventListener('change', () => {
     try { localStorage.setItem('shivshakti-csv-url', urlInput.value.trim()); } catch { /* Optional preference only. */ }
