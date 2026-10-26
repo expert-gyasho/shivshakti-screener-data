@@ -106,9 +106,13 @@
       const distal = side === 'demand' ? Math.min(...base.map(c => c.low)) : Math.max(...base.map(c => c.high));
       const low = Math.min(proximal, distal), high = Math.max(proximal, distal);
       let revisits = 0, wasInside = false;
-      for (const candle of candles.slice(end + 1)) {
+      for (let future = end + 1; future < candles.length; future++) {
+        const candle = candles[future];
         const inside = candle.low <= high && candle.high >= low;
-        if (inside && !wasInside) revisits++;
+        if (inside && !wasInside) {
+          revisits++;
+          if (revisits >= 2) break;
+        }
         wasInside = inside;
       }
       const next = candles[end + 1];
@@ -199,7 +203,8 @@
     candles.sort((a, b) => a.date.localeCompare(b.date));
     candles.forEach(c => { c.bodyPct = (Math.abs(c.close - c.open) / (c.high - c.low)) * 100; c.type = candleType(c); });
     const last = candles.at(-1), previous = candles.at(-2);
-    const demandZones = findZones(candles, 'demand'), supplyZones = findZones(candles, 'supply');
+    const zoneCandles = candles.length > 1200 ? candles.slice(-1200) : candles;
+    const demandZones = findZones(zoneCandles, 'demand'), supplyZones = findZones(zoneCandles, 'supply');
     const result = {
       candles, latest: last, change: previous ? (last.close - previous.close) / previous.close * 100 : null,
       candleType: last.type, bodyPercent: last.bodyPct, demandZones, supplyZones,
@@ -293,25 +298,25 @@
     return true;
   }
 
-  function importCandleRows(rows, source) {
-    const headers = rows[0].map(normalize);
+  function createCandleImporter(headerRow) {
+    const headers = headerRow.map(normalize);
     const col = Object.fromEntries(Object.entries(aliases).map(([key, names]) => [key, headers.findIndex(h => names.includes(h))]));
-    if (['symbol', 'date', 'open', 'high', 'low', 'close', 'volume'].some(key => col[key] < 0)) return false;
-    const grouped = new Map(), seen = new Set(); let skipped = 0;
-    for (const cells of rows.slice(1)) {
-      if (col.series >= 0 && String(cells[col.series] || '').trim().toUpperCase() !== 'EQ') { skipped++; continue; }
+    if (['symbol', 'date', 'open', 'high', 'low', 'close', 'volume'].some(key => col[key] < 0)) return null;
+    const grouped = new Map(), lastDateByKey = new Map(); let skipped = 0;
+    function add(cells) {
+      if (col.series >= 0 && String(cells[col.series] || '').trim().toUpperCase() !== 'EQ') { skipped++; return; }
       const symbol = String(cells[col.symbol] || '').trim().toUpperCase();
       const date = normalizeDate(cells[col.date]);
       const candle = { open: number(cells[col.open]), high: number(cells[col.high]), low: number(cells[col.low]), close: number(cells[col.close]), volume: number(cells[col.volume]), date };
-      if (!/^[A-Z0-9._-]{1,24}$/.test(symbol) || !/^\d{4}-\d{2}-\d{2}(?:[ T].*)?$/.test(date) || !Number.isFinite(Date.parse(date)) || !Object.values(candle).filter(v => typeof v === 'number').every(Number.isFinite) || Math.min(candle.open, candle.high, candle.low, candle.close) <= 0 || candle.high <= candle.low || candle.high < Math.max(candle.open, candle.close, candle.low) || candle.low > Math.min(candle.open, candle.close) || candle.volume < 0) { skipped++; continue; }
+      if (!/^[A-Z0-9._-]{1,24}$/.test(symbol) || !/^\d{4}-\d{2}-\d{2}(?:[ T].*)?$/.test(date) || !Number.isFinite(Date.parse(date)) || !Object.values(candle).filter(v => typeof v === 'number').every(Number.isFinite) || Math.min(candle.open, candle.high, candle.low, candle.close) <= 0 || candle.high <= candle.low || candle.high < Math.max(candle.open, candle.close, candle.low) || candle.low > Math.min(candle.open, candle.close) || candle.volume < 0) { skipped++; return; }
       const timeframe = frameName(col.timeframe >= 0 ? cells[col.timeframe] : 'Daily');
       const key = `${symbol}|${timeframe}`;
-      const candleKey = `${symbol}|${timeframe}|${date}`;
-      if (seen.has(candleKey)) { skipped++; continue; }
-      seen.add(candleKey);
+      if (lastDateByKey.get(key) === date) { skipped++; return; }
+      lastDateByKey.set(key, date);
       if (!grouped.has(key)) grouped.set(key, { symbol, timeframe, candles: [] });
       grouped.get(key).candles.push(candle);
     }
+    function finish(source) {
     if (!grouped.size) throw new Error('Candle CSV headers/values check karein: symbol,date,open,high,low,close,volume required hain.');
     const bySymbol = new Map();
     for (const group of grouped.values()) {
@@ -384,8 +389,68 @@
     document.querySelector('#rowCount').textContent = `${bySymbol.size} symbols · historical OHLCV candles${skipped ? ` · ${skipped} invalid rows skipped` : ''}`;
     message(`${bySymbol.size} symbols analyzed from historical candles${skipped ? `; ${skipped} invalid rows skipped` : ''}`);
     return true;
+    }
+    return { add, finish };
   }
 
+  function importCandleRows(rows, source) {
+    const importer = createCandleImporter(rows[0]);
+    if (!importer) return false;
+    for (const cells of rows.slice(1)) importer.add(cells);
+    return importer.finish(source);
+  }
+
+  async function importLargeCandleStream(response, source) {
+    if (!response.body) throw new Error('Browser stream reading is unavailable for the historical file.');
+    const reader = response.body.getReader();
+    const first = await reader.read();
+    if (first.done || !first.value) throw new Error('Historical CSV file is empty.');
+    let stream = new ReadableStream({
+      async start(controller) {
+        controller.enqueue(first.value);
+        try {
+          while (true) { const part = await reader.read(); if (part.done) break; controller.enqueue(part.value); }
+          controller.close();
+        } catch (error) { controller.error(error); }
+      }
+    });
+    const firstBytes = first.value;
+    if (firstBytes[0] === 0x1f && firstBytes[1] === 0x8b) {
+      if (typeof DecompressionStream !== 'function') throw new Error('This browser cannot open the compressed history file.');
+      stream = stream.pipeThrough(new DecompressionStream('gzip'));
+    }
+    const textReader = stream.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let pending = '', importer = null, importedRows = 0, rowsSinceUpdate = 0;
+    const consumeLine = line => {
+      if (!line.trim()) return;
+      const cells = parseCsv(line)[0] || [];
+      if (!importer) {
+        importer = createCandleImporter(cells);
+        if (!importer) throw new Error('CSV headers need symbol,date,open,high,low,close,volume columns.');
+        return;
+      }
+      importer.add(cells); importedRows++; rowsSinceUpdate++;
+    };
+    while (true) {
+      const part = await textReader.read();
+      if (part.value) pending += decoder.decode(part.value, {stream: true});
+      if (part.done) { pending += decoder.decode(); break; }
+      let newline;
+      while ((newline = pending.indexOf('\n')) >= 0) {
+        const line = pending.slice(0, newline); pending = pending.slice(newline + 1); consumeLine(line);
+      }
+      if (rowsSinceUpdate >= 10000) {
+        loadButton.textContent = 'Loading… ' + importedRows.toLocaleString('en-IN') + ' rows';
+        rowsSinceUpdate = 0; await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    }
+    if (pending.trim()) consumeLine(pending);
+    if (!importer || !importedRows) throw new Error('Historical CSV has no candle rows.');
+    loadButton.textContent = 'Analyzing ' + importedRows.toLocaleString('en-IN') + ' rows…';
+    await new Promise(resolve => setTimeout(resolve, 0));
+    return importer.finish(source);
+  }
   function importText(text, source) {
     const rows = parseCsv(text);
     if (rows.length === 1) {
