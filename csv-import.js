@@ -418,8 +418,14 @@
       url.pathname = '/' + [parts[0], parts[1], ...parts.slice(3)].join('/');
       url.search = ''; url.hash = '';
     }
-    if (!['raw.githubusercontent.com', 'gist.githubusercontent.com'].includes(url.hostname) || url.protocol !== 'https:') {
-      throw new Error('Public GitHub Raw CSV link daaliye. Private repo links supported nahi hain.');
+    if (url.hostname === 'expert-gyasho.github.io') {
+      if (url.pathname !== '/shivshakti-screener-data/candles.csv.gz') {
+        throw new Error('Shivshakti Pages ke published candles.csv.gz link ka use kijiye.');
+      }
+      url.search = ''; url.hash = '';
+    }
+    if (!['raw.githubusercontent.com', 'gist.githubusercontent.com', 'expert-gyasho.github.io'].includes(url.hostname) || url.protocol !== 'https:') {
+      throw new Error('Public GitHub CSV link daaliye. Private repo links supported nahi hain.');
     }
     url.searchParams.set('_refresh', Date.now());
     return url.href;
@@ -469,18 +475,20 @@
     const savedUrl = localStorage.getItem('shivshakti-csv-url');
     const oldDefaultUrl = 'https://github.com/expert-gyasho/shivshakti-screener-data/blob/main/candles.csv';
     const lifetimeUrl = 'https://github.com/expert-gyasho/shivshakti-screener-data/blob/main/candles.csv.gz';
-    if (savedUrl === oldDefaultUrl && urlInput) {
-      urlInput.value = lifetimeUrl;
-      localStorage.setItem('shivshakti-csv-url', lifetimeUrl);
+    const siteFeedUrl = 'https://expert-gyasho.github.io/shivshakti-screener-data/candles.csv.gz';
+    if ([oldDefaultUrl, lifetimeUrl].includes(savedUrl)) {
+      urlInput.value = siteFeedUrl;
+      localStorage.setItem('shivshakti-csv-url', siteFeedUrl);
     } else if (savedUrl && urlInput) urlInput.value = savedUrl;
+    else if (urlInput) urlInput.value = siteFeedUrl;
     const savedAutoReload = localStorage.getItem('shivshakti-csv-auto-reload');
-    const autoReloadPreferenceVersion = localStorage.getItem('shivshakti-csv-auto-reload-v2');
-    // The 48 MB compressed history file is opt-in so first page load stays responsive.
-    const enabled = autoReloadPreferenceVersion === 'true' && savedAutoReload === 'true';
+    const autoReloadPreferenceVersion = localStorage.getItem('shivshakti-csv-auto-reload-v3');
+    // This screener is expected to show the published full history automatically.
+    const enabled = autoReloadPreferenceVersion === 'true' ? savedAutoReload === 'true' : true;
     if (autoReload) autoReload.checked = enabled;
     if (autoReloadPreferenceVersion !== 'true') {
-      localStorage.setItem('shivshakti-csv-auto-reload', 'false');
-      localStorage.setItem('shivshakti-csv-auto-reload-v2', 'true');
+      localStorage.setItem('shivshakti-csv-auto-reload', 'true');
+      localStorage.setItem('shivshakti-csv-auto-reload-v3', 'true');
     }
   } catch { /* Browser privacy settings may disable local storage. */ }
   urlInput?.addEventListener('change', () => {
