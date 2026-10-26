@@ -520,17 +520,7 @@
       localStorage.setItem('shivshakti-csv-url', urlInput.value.trim());
       const response = await fetch(url, { cache: 'no-store' });
       if (!response.ok) throw new Error(`GitHub CSV load failed (${response.status}).`);
-      const bytes = await response.arrayBuffer();
-      const data = new Uint8Array(bytes);
-      let csvText;
-      if (data[0] === 0x1f && data[1] === 0x8b) {
-        if (typeof DecompressionStream !== 'function') throw new Error('This browser cannot open the compressed history file.');
-        const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
-        csvText = await new Response(stream).text();
-      } else {
-        csvText = new TextDecoder('utf-8').decode(bytes);
-      }
-      importText(csvText, `GitHub CSV · ${new Date().toLocaleTimeString('en-IN')}`);
+      await importLargeCandleStream(response, `GitHub CSV · ${new Date().toLocaleTimeString('en-IN')}`);
       if (isAuto) message('GitHub CSV auto-reload complete.');
     } catch (error) { message(error.message || 'GitHub CSV load failed'); }
     finally { loadButton.disabled = false; loadButton.textContent = original; }
