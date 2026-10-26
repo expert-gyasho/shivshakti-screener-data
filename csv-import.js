@@ -314,7 +314,9 @@
       if (lastDateByKey.get(key) === date) { skipped++; return; }
       lastDateByKey.set(key, date);
       if (!grouped.has(key)) grouped.set(key, { symbol, timeframe, candles: [] });
-      grouped.get(key).candles.push(candle);
+      const group = grouped.get(key);
+      group.candles.push(candle);
+      if (group.candles.length > 200) group.candles.splice(0, 100);
     }
     function finish(source) {
     if (!grouped.size) throw new Error('Candle CSV headers/values check karein: symbol,date,open,high,low,close,volume required hain.');
@@ -383,7 +385,7 @@
     document.querySelector('.sample-pill').textContent = '● HISTORICAL CSV · ZONES CALCULATED';
     if (saveCandlesButton) saveCandlesButton.disabled = false;
     document.querySelector('.market-pill').innerHTML = '<i></i>' + safeHtml(source);
-    note.innerHTML = '<strong>Historical OHLCV candles imported.</strong> All imported candles remain available in Historical Candles. Zone detection scans the latest 100 candles per timeframe to keep the full 48 MB history responsive. Weekly/monthly groups can be incomplete. EMA/index cards remain unavailable. Gap, 50-SMA flat cutoff and overlap-based authenticity are screening approximations; this is not a trade recommendation.';
+    note.innerHTML = '<strong>Historical OHLCV candles imported.</strong> All rows in the published 48 MB feed are read. To keep this page responsive, it retains the latest 200 candles per symbol and timeframe; zone detection scans the latest 100. Download the source CSV for the full history. Weekly/monthly groups can be incomplete. EMA/index cards remain unavailable. Gap, 50-SMA flat cutoff and overlap-based authenticity are screening approximations; this is not a trade recommendation.';
     document.querySelector('#tabs [data-view="candles"]')?.click();
     render();
     document.querySelector('#rowCount').textContent = `${bySymbol.size} symbols · historical OHLCV candles${skipped ? ` · ${skipped} invalid rows skipped` : ''}`;
