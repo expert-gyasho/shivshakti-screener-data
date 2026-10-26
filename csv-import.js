@@ -203,7 +203,7 @@
     candles.sort((a, b) => a.date.localeCompare(b.date));
     candles.forEach(c => { c.bodyPct = (Math.abs(c.close - c.open) / (c.high - c.low)) * 100; c.type = candleType(c); });
     const last = candles.at(-1), previous = candles.at(-2);
-    const zoneCandles = candles.length > 1200 ? candles.slice(-1200) : candles;
+    const zoneCandles = candles.length > 300 ? candles.slice(-300) : candles;
     const demandZones = findZones(zoneCandles, 'demand'), supplyZones = findZones(zoneCandles, 'supply');
     const result = {
       candles, latest: last, change: previous ? (last.close - previous.close) / previous.close * 100 : null,
@@ -383,7 +383,7 @@
     document.querySelector('.sample-pill').textContent = '● HISTORICAL CSV · ZONES CALCULATED';
     if (saveCandlesButton) saveCandlesButton.disabled = false;
     document.querySelector('.market-pill').innerHTML = '<i></i>' + safeHtml(source);
-    note.innerHTML = '<strong>Historical OHLCV candles imported.</strong> Gyan zone boundaries, freshness/strength/base score, entry confirmation, 50-SMA trend and curve location are calculated from these rows. Weekly/monthly groups can be incomplete. EMA/index cards remain unavailable. Gap, 50-SMA flat cutoff and overlap-based authenticity are screening approximations; this is not a trade recommendation.';
+    note.innerHTML = '<strong>Historical OHLCV candles imported.</strong> All imported candles remain available in Historical Candles. Zone detection scans the latest 300 candles per timeframe to keep the full 48 MB history responsive. Weekly/monthly groups can be incomplete. EMA/index cards remain unavailable. Gap, 50-SMA flat cutoff and overlap-based authenticity are screening approximations; this is not a trade recommendation.';
     document.querySelector('#tabs [data-view="candles"]')?.click();
     render();
     document.querySelector('#rowCount').textContent = `${bySymbol.size} symbols · historical OHLCV candles${skipped ? ` · ${skipped} invalid rows skipped` : ''}`;
