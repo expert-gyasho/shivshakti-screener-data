@@ -203,7 +203,7 @@
     candles.sort((a, b) => a.date.localeCompare(b.date));
     candles.forEach(c => { c.bodyPct = (Math.abs(c.close - c.open) / (c.high - c.low)) * 100; c.type = candleType(c); });
     const last = candles.at(-1), previous = candles.at(-2);
-    const zoneCandles = candles.length > 300 ? candles.slice(-300) : candles;
+    const zoneCandles = candles.length > 100 ? candles.slice(-100) : candles;
     const demandZones = findZones(zoneCandles, 'demand'), supplyZones = findZones(zoneCandles, 'supply');
     const result = {
       candles, latest: last, change: previous ? (last.close - previous.close) / previous.close * 100 : null,
@@ -383,7 +383,7 @@
     document.querySelector('.sample-pill').textContent = '● HISTORICAL CSV · ZONES CALCULATED';
     if (saveCandlesButton) saveCandlesButton.disabled = false;
     document.querySelector('.market-pill').innerHTML = '<i></i>' + safeHtml(source);
-    note.innerHTML = '<strong>Historical OHLCV candles imported.</strong> All imported candles remain available in Historical Candles. Zone detection scans the latest 300 candles per timeframe to keep the full 48 MB history responsive. Weekly/monthly groups can be incomplete. EMA/index cards remain unavailable. Gap, 50-SMA flat cutoff and overlap-based authenticity are screening approximations; this is not a trade recommendation.';
+    note.innerHTML = '<strong>Historical OHLCV candles imported.</strong> All imported candles remain available in Historical Candles. Zone detection scans the latest 100 candles per timeframe to keep the full 48 MB history responsive. Weekly/monthly groups can be incomplete. EMA/index cards remain unavailable. Gap, 50-SMA flat cutoff and overlap-based authenticity are screening approximations; this is not a trade recommendation.';
     document.querySelector('#tabs [data-view="candles"]')?.click();
     render();
     document.querySelector('#rowCount').textContent = `${bySymbol.size} symbols · historical OHLCV candles${skipped ? ` · ${skipped} invalid rows skipped` : ''}`;
@@ -537,13 +537,13 @@
     } else if (savedUrl && urlInput) urlInput.value = savedUrl;
     else if (urlInput) urlInput.value = siteFeedUrl;
     const savedAutoReload = localStorage.getItem('shivshakti-csv-auto-reload');
-    const autoReloadPreferenceVersion = localStorage.getItem('shivshakti-csv-auto-reload-v3');
+    const autoReloadPreferenceVersion = localStorage.getItem('shivshakti-csv-auto-reload-v4');
     // This screener is expected to show the published full history automatically.
     const enabled = autoReloadPreferenceVersion === 'true' ? savedAutoReload === 'true' : true;
     if (autoReload) autoReload.checked = enabled;
     if (autoReloadPreferenceVersion !== 'true') {
       localStorage.setItem('shivshakti-csv-auto-reload', 'true');
-      localStorage.setItem('shivshakti-csv-auto-reload-v3', 'true');
+      localStorage.setItem('shivshakti-csv-auto-reload-v4', 'true');
     }
   } catch { /* Browser privacy settings may disable local storage. */ }
   urlInput?.addEventListener('change', () => {
