@@ -245,6 +245,18 @@ def main() -> int:
                 "existing published CSVs were not replaced."
             )
     daily = downloaded_daily
+    # Newly added indices and commodity futures need a full initial daily history;
+    # the normal market-wide refresh only downloads the latest five days.
+    bootstrap_tickers = [ticker for ticker in tickers if len(existing_daily.get(ticker, pd.DataFrame())) < 30]
+    if bootstrap_tickers and daily_fetch_period != DAILY_PERIOD:
+        print(f"Bootstrapping daily history for {len(bootstrap_tickers)} new/short-history symbols")
+        bootstrap_daily = download_history(bootstrap_tickers, DAILY_PERIOD, "1d")
+        for ticker, history in bootstrap_daily.items():
+            recent = daily.get(ticker, pd.DataFrame())
+            if not recent.empty:
+                history = pd.concat([history, recent])
+                history = history[~history.index.duplicated(keep="last")].sort_index()
+            daily[ticker] = history
     # Merge recent bars over stored history, retaining all earlier bars.
     for ticker, old_frame in existing_daily.items():
         new_frame = daily.get(ticker, pd.DataFrame())
