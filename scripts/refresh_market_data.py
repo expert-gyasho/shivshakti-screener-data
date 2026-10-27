@@ -256,7 +256,16 @@ def main() -> int:
             daily[ticker] = combined
 
     intraday = download_history(tickers, INTRADAY_PERIOD, "15m")
-    hourly = download_history(tickers, os.getenv("HOURLY_PERIOD", "730d"), "1h")
+    existing_4h = []
+    if CANDLES_PATH.exists() and CANDLES_PATH.stat().st_size > 20:
+        try:
+            prior = pd.read_csv(CANDLES_PATH, compression="gzip")
+            prior = prior[prior["timeframe"].astype(str).str.lower().eq("4-hour")]
+            existing_4h = prior.to_dict("records")
+        except Exception as exc:
+            print(f"Could not reuse stored 4-hour history: {exc}", file=sys.stderr)
+    hourly_period = os.getenv("HOURLY_PERIOD", "5d" if existing_4h else "730d")
+    hourly = download_history(tickers, hourly_period, "1h")
     if not daily and not intraday and not hourly:
         raise RuntimeError("No market data downloaded. Existing CSVs were not replaced.")
 
@@ -319,7 +328,18 @@ def main() -> int:
             recent_rows = rows_for_timeframe(symbol, recent, "15-Minute")
             intraday_rows.extend(recent_rows)
             scanner_rows.extend(recent_rows)
-        scanner_rows.extend([row for row in four_hour_rows if row["symbol"] == symbol])
+
+
+    # Retain the one-time 4-hour backfill and merge recent hourly refreshes over it.
+    merged_4h = {}
+    for row in existing_4h + four_hour_rows:
+        merged_4h[(row["symbol"], row["date"], row["timeframe"])] = row
+    grouped_4h: dict[str, list[dict]] = {}
+    for row in merged_4h.values():
+        grouped_4h.setdefault(row["symbol"], []).append(row)
+    for symbol_rows in grouped_4h.values():
+        symbol_rows.sort(key=lambda row: row["date"])
+        scanner_rows.extend(symbol_rows[-260:])
 
     def safe_write_csv(rows: list[dict], path: Path, columns: list[str]) -> None:
         if not rows:
@@ -375,6 +395,7 @@ def main() -> int:
         "daily_symbols_received": len(daily),
         "intraday_symbols_received": len(intraday),
         "hourly_symbols_received": len(hourly),
+        "hourly_fetch_period": hourly_period,
         "failed_daily_symbols": failed_symbols,
         "daily_period": DAILY_PERIOD,
         "daily_history_period": DAILY_PERIOD,
