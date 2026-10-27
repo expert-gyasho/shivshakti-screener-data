@@ -57,7 +57,7 @@ def get_symbols() -> list[str]:
     )
     if not symbols:
         raise RuntimeError("The market universe returned no symbols.")
-    return [f"{symbol}.NS" for symbol in symbols]
+    return [f"{symbol}.NS" for symbol in symbols] + ["^NSEI", "^NSEBANK", "^BSESN", "GC=F", "SI=F", "CL=F", "NG=F"]
 
 
 def get_ticker_frame(download: pd.DataFrame, ticker: str) -> pd.DataFrame:
@@ -151,7 +151,7 @@ def rows_for_timeframe(symbol: str, frame: pd.DataFrame, timeframe: str) -> list
             stamp = stamp.tz_convert("Asia/Kolkata").tz_localize(None)
         # Preserve intraday candle times; date-only values collapse all
         # 15-minute bars from the same session into a single deduplicated row.
-        date_value = stamp.strftime("%Y-%m-%d %H:%M:%S") if timeframe == "15-Minute" else stamp.strftime("%Y-%m-%d")
+        date_value = stamp.strftime("%Y-%m-%d %H:%M:%S") if timeframe in {"15-Minute", "4-Hour"} else stamp.strftime("%Y-%m-%d")
         result.append({
             "symbol": symbol,
             "date": date_value,
@@ -163,6 +163,29 @@ def rows_for_timeframe(symbol: str, frame: pd.DataFrame, timeframe: str) -> list
             "volume": int(row["volume"]) if pd.notna(row["volume"]) else 0,
         })
     return result
+
+
+def resample_session_4h(frame: pd.DataFrame) -> pd.DataFrame:
+    """Aggregate hourly bars into four-hour NSE-session candles without overnight gaps."""
+    if frame.empty:
+        return pd.DataFrame()
+    local = frame.copy()
+    if getattr(local.index, "tz", None) is not None:
+        local.index = local.index.tz_convert("Asia/Kolkata").tz_localize(None)
+    local = local.sort_index()
+    minutes = local.index.hour * 60 + local.index.minute
+    local = local.loc[(minutes >= 555) & (minutes < 930)].copy()
+    if local.empty:
+        return pd.DataFrame()
+    local["_date"] = local.index.strftime("%Y-%m-%d")
+    local["_bucket"] = ((local.index.hour * 60 + local.index.minute - 555) // 240).astype(int)
+    rows = []
+    for (day, bucket), group in local.groupby(["_date", "_bucket"], sort=True):
+        stamp = pd.Timestamp(day) + pd.Timedelta(minutes=555 + int(bucket) * 240)
+        rows.append({"date": stamp, "open": group["open"].iloc[0], "high": group["high"].max(),
+                     "low": group["low"].min(), "close": group["close"].iloc[-1],
+                     "volume": group["volume"].fillna(0).sum()})
+    return pd.DataFrame(rows).set_index("date")
 
 
 def resample_ohlcv(frame: pd.DataFrame, rule: str) -> pd.DataFrame:
@@ -178,7 +201,7 @@ def resample_ohlcv(frame: pd.DataFrame, rule: str) -> pd.DataFrame:
 def main() -> int:
     started = datetime.now(timezone.utc)
     tickers = get_symbols()
-    print(f"Universe contains {len(tickers)} NIFTY 500 symbols")
+    print(f"Universe contains {len(tickers)} symbols including NIFTY 500, indices and commodities")
 
     # Download the provider's maximum available daily history once, including
     # for existing installations that were previously bootstrapped with 5y.
@@ -233,7 +256,8 @@ def main() -> int:
             daily[ticker] = combined
 
     intraday = download_history(tickers, INTRADAY_PERIOD, "15m")
-    if not daily and not intraday:
+    hourly = download_history(tickers, os.getenv("HOURLY_PERIOD", "730d"), "1h")
+    if not daily and not intraday and not hourly:
         raise RuntimeError("No market data downloaded. Existing CSVs were not replaced.")
 
     # Safety gate: never replace the scanner's existing CSV with a small,
@@ -251,6 +275,7 @@ def main() -> int:
     daily_rows: list[dict] = []
     scanner_rows: list[dict] = []
     intraday_rows: list[dict] = []
+    four_hour_rows: list[dict] = []
     failed_symbols = []
 
     # The existing dashboard schema expects one row per symbol/candle/timeframe.
@@ -275,6 +300,10 @@ def main() -> int:
         else:
             failed_symbols.append(symbol)
 
+        hframe = hourly.get(ticker, pd.DataFrame())
+        if not hframe.empty:
+            four_hour_rows.extend(rows_for_timeframe(symbol, resample_session_4h(hframe), "4-Hour"))
+
         iframe = intraday.get(ticker, pd.DataFrame())
         if not iframe.empty:
             # Keep one month of recent intraday candles. The browser aggregates these
@@ -290,6 +319,7 @@ def main() -> int:
             recent_rows = rows_for_timeframe(symbol, recent, "15-Minute")
             intraday_rows.extend(recent_rows)
             scanner_rows.extend(recent_rows)
+        scanner_rows.extend([row for row in four_hour_rows if row["symbol"] == symbol])
 
     def safe_write_csv(rows: list[dict], path: Path, columns: list[str]) -> None:
         if not rows:
@@ -344,6 +374,7 @@ def main() -> int:
         "symbols_requested": len(tickers),
         "daily_symbols_received": len(daily),
         "intraday_symbols_received": len(intraday),
+        "hourly_symbols_received": len(hourly),
         "failed_daily_symbols": failed_symbols,
         "daily_period": DAILY_PERIOD,
         "daily_history_period": DAILY_PERIOD,
