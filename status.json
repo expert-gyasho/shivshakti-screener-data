@@ -3,10 +3,10 @@
   "provider": "Yahoo Finance via yfinance (unofficial; prototype only)",
   "universe": "NIFTY 500",
   "symbols_requested": 508,
-  "daily_symbols_received": 506,
+  "daily_symbols_received": 513,
   "intraday_symbols_received": 504,
-  "hourly_symbols_received": 487,
-  "hourly_fetch_period": "730d",
+  "hourly_symbols_received": 504,
+  "hourly_fetch_period": "5d",
   "failed_daily_symbols": [
     "BAGMANE",
     "DUMMYHEG"
@@ -15,17 +15,17 @@
   "daily_history_period": "max",
   "daily_fetch_period": "5d",
   "intraday_period": "1mo",
-  "last_successful_run_utc": "2026-10-27T04:25:55.108244+00:00",
-  "duration_seconds": 688.8,
+  "last_successful_run_utc": "2026-10-27T09:27:35.967237+00:00",
+  "duration_seconds": 400.0,
   "timeframe_rows": {
-    "Daily": 2057143,
-    "Weekly": 433342,
+    "Daily": 2057144,
+    "Weekly": 433343,
     "Monthly": 99796,
     "Quarterly": 33730,
     "Half-Yearly": 17278,
     "Yearly": 8638,
-    "15-Minute": 245227,
-    "4-Hour": 125680
+    "15-Minute": 256009,
+    "4-Hour": 125860
   },
   "timeframes_validated": [
     "15-Minute",
@@ -38,9 +38,9 @@
     "Yearly"
   ],
   "csv_rows": {
-    "candles.csv.gz": 3020834,
-    "data/daily_ohlcv.csv.gz": 2057143,
-    "data/intraday_15m.csv": 245227
+    "candles.csv.gz": 3031798,
+    "data/daily_ohlcv.csv.gz": 2057144,
+    "data/intraday_15m.csv": 256009
   },
   "warning": "Unofficial market data; verify accuracy and data-use permissions before trading or redistribution."
 }
