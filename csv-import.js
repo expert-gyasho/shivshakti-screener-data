@@ -65,6 +65,7 @@
   function frameName(value) {
     const n = normalize(value || 'daily');
     if (['15m', '15min', '15minute', 'intraday'].includes(n)) return '15-minute';
+    if (['4h','4hr','4hour','4hours'].includes(n)) return '4-Hour';
     if (['75m', '75min', '75minute'].includes(n)) return '75-minute';
     if (['125m', '125min', '125minute'].includes(n)) return '125-minute';
     if (['275m', '275min', '275minute'].includes(n)) return '275-minute';
@@ -280,7 +281,7 @@
     for (const cells of rows.slice(1)) {
       const symbol = String(cells[symbolCol] || '').trim().toUpperCase();
       const price = number(cells[priceCol]);
-      if (!/^[A-Z0-9._-]{1,24}$/.test(symbol) || !Number.isFinite(price) || price <= 0) { skipped++; continue; }
+      if (!/^[A-Z0-9._^=-]{1,24}$/.test(symbol) || !Number.isFinite(price) || price <= 0) { skipped++; continue; }
       const stock = available.get(symbol);
       if (!stock) { skipped++; continue; }
       stock.price = price;
@@ -308,7 +309,7 @@
       const symbol = String(cells[col.symbol] || '').trim().toUpperCase();
       const date = normalizeDate(cells[col.date]);
       const candle = { open: number(cells[col.open]), high: number(cells[col.high]), low: number(cells[col.low]), close: number(cells[col.close]), volume: number(cells[col.volume]), date };
-      if (!/^[A-Z0-9._-]{1,24}$/.test(symbol) || !/^\d{4}-\d{2}-\d{2}(?:[ T].*)?$/.test(date) || !Number.isFinite(Date.parse(date)) || !Object.values(candle).filter(v => typeof v === 'number').every(Number.isFinite) || Math.min(candle.open, candle.high, candle.low, candle.close) <= 0 || candle.high <= candle.low || candle.high < Math.max(candle.open, candle.close, candle.low) || candle.low > Math.min(candle.open, candle.close) || candle.volume < 0) { skipped++; return; }
+      if (!/^[A-Z0-9._^=-]{1,24}$/.test(symbol) || !/^\d{4}-\d{2}-\d{2}(?:[ T].*)?$/.test(date) || !Number.isFinite(Date.parse(date)) || !Object.values(candle).filter(v => typeof v === 'number').every(Number.isFinite) || Math.min(candle.open, candle.high, candle.low, candle.close) <= 0 || candle.high <= candle.low || candle.high < Math.max(candle.open, candle.close, candle.low) || candle.low > Math.min(candle.open, candle.close) || candle.volume < 0) { skipped++; return; }
       const timeframe = frameName(col.timeframe >= 0 ? cells[col.timeframe] : 'Daily');
       const key = `${symbol}|${timeframe}`;
       if (lastDateByKey.get(key) === date) { skipped++; return; }
@@ -316,7 +317,7 @@
       if (!grouped.has(key)) grouped.set(key, { symbol, timeframe, candles: [] });
       const group = grouped.get(key);
       group.candles.push(candle);
-      if (group.candles.length > 200) group.candles.splice(0, 100);
+      if (group.candles.length > 400) group.candles.splice(0, 200);
     }
     function finish(source) {
     if (!grouped.size) throw new Error('Candle CSV headers/values check karein: symbol,date,open,high,low,close,volume required hain.');
