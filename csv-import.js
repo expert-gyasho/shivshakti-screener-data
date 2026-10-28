@@ -384,7 +384,8 @@
       importedStocks.push(stock);
       if (!known.has(symbol)) { stocks.push(stock); known.set(symbol, stock); }
     }
-    stocks.splice(0, stocks.length, ...importedStocks);
+    stocks.length = 0;
+    for (const importedStock of importedStocks) stocks.push(importedStock);
     const loadedSymbols = document.querySelector('#loadedSymbols'); if (loadedSymbols) loadedSymbols.textContent = bySymbol.size.toLocaleString('en-IN');
     const feedState = document.querySelector('#feedState'); if (feedState) feedState.textContent = 'LOADED';
     const demandMatches = document.querySelector('#demandMatches'); if (demandMatches) demandMatches.textContent = importedStocks.filter(stock => stock.candleFrames?.Daily?.demand?.zone || stock.candleFrames?.Weekly?.demand?.zone || stock.candleFrames?.Monthly?.demand?.zone).length.toLocaleString('en-IN');
