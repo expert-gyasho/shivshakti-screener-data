@@ -527,7 +527,7 @@
       if (!response.ok) throw new Error(`GitHub CSV load failed (${response.status}).`);
       await importLargeCandleStream(response, `GitHub CSV · ${new Date().toLocaleTimeString('en-IN')}`);
       if (isAuto) message('GitHub CSV auto-reload complete.');
-    } catch (error) { message(error.message || 'GitHub CSV load failed'); }
+    } catch (error) { const detail = error.message || 'GitHub CSV load failed'; document.querySelector('.sample-pill').textContent = '● DATA LOAD FAILED'; document.querySelector('.market-pill').innerHTML = '<i></i>Published feed unavailable'; note.innerHTML = '<strong>Market data load failed.</strong> ' + safeHtml(detail) + ' No sample records are being shown.'; document.querySelector('#rowCount').textContent = 'Data load failed'; message(detail); }
     finally { loadButton.disabled = false; loadButton.textContent = original; }
   }
 
@@ -536,11 +536,8 @@
     const oldDefaultUrl = 'https://github.com/expert-gyasho/shivshakti-screener-data/blob/main/candles.csv';
     const lifetimeUrl = 'https://github.com/expert-gyasho/shivshakti-screener-data/blob/main/candles.csv.gz';
     const siteFeedUrl = 'https://expert-gyasho.github.io/shivshakti-screener-data/candles.csv.gz';
-    if ([oldDefaultUrl, lifetimeUrl].includes(savedUrl)) {
-      urlInput.value = siteFeedUrl;
-      localStorage.setItem('shivshakti-csv-url', siteFeedUrl);
-    } else if (savedUrl && urlInput) urlInput.value = savedUrl;
-    else if (urlInput) urlInput.value = siteFeedUrl;
+    urlInput.value = siteFeedUrl;
+    try { localStorage.setItem('shivshakti-csv-url', siteFeedUrl); } catch { /* Feed URL is fixed to this repository. */ }
     const savedAutoReload = localStorage.getItem('shivshakti-csv-auto-reload');
     const autoReloadPreferenceVersion = localStorage.getItem('shivshakti-csv-auto-reload-v4');
     // This screener is expected to show the published full history automatically.
@@ -578,7 +575,7 @@
     URL.revokeObjectURL(link.href);
     message(`${records.length - 1} candle rows laptop par save hui.`);
   });
-  if (autoReload?.checked) loadGithubCsv();
+  loadGithubCsv(); // Always load the published feed on page open, even if periodic reload was previously disabled.
   setInterval(() => {
     if (autoReload?.checked && !document.hidden) loadGithubCsv(true);
   }, 5 * 60 * 1000);
