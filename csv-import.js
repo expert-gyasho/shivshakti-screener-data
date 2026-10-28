@@ -385,6 +385,9 @@
       if (!known.has(symbol)) { stocks.push(stock); known.set(symbol, stock); }
     }
     stocks.splice(0, stocks.length, ...importedStocks);
+    const loadedSymbols = document.querySelector('#loadedSymbols'); if (loadedSymbols) loadedSymbols.textContent = bySymbol.size.toLocaleString('en-IN');
+    const feedState = document.querySelector('#feedState'); if (feedState) feedState.textContent = 'LOADED';
+    const demandMatches = document.querySelector('#demandMatches'); if (demandMatches) demandMatches.textContent = importedStocks.filter(stock => stock.candleFrames?.Daily?.demand?.zone || stock.candleFrames?.Weekly?.demand?.zone || stock.candleFrames?.Monthly?.demand?.zone).length.toLocaleString('en-IN');
     document.querySelector('.sample-pill').textContent = '● HISTORICAL CSV · ZONES CALCULATED';
     if (saveCandlesButton) saveCandlesButton.disabled = false;
     document.querySelector('.market-pill').innerHTML = '<i></i>' + safeHtml(source);
@@ -527,7 +530,7 @@
       if (!response.ok) throw new Error(`GitHub CSV load failed (${response.status}).`);
       await importLargeCandleStream(response, `GitHub CSV · ${new Date().toLocaleTimeString('en-IN')}`);
       if (isAuto) message('GitHub CSV auto-reload complete.');
-    } catch (error) { const detail = error.message || 'GitHub CSV load failed'; document.querySelector('.sample-pill').textContent = '● DATA LOAD FAILED'; document.querySelector('.market-pill').innerHTML = '<i></i>Published feed unavailable'; note.innerHTML = '<strong>Market data load failed.</strong> ' + safeHtml(detail) + ' No sample records are being shown.'; document.querySelector('#rowCount').textContent = 'Data load failed'; message(detail); }
+    } catch (error) { const detail = error.message || 'GitHub CSV load failed'; document.querySelector('.sample-pill').textContent = '● DATA LOAD FAILED'; const feedState = document.querySelector('#feedState'); if (feedState) feedState.textContent = 'ERROR'; const loadedSymbols = document.querySelector('#loadedSymbols'); if (loadedSymbols) loadedSymbols.textContent = '—'; document.querySelector('.market-pill').innerHTML = '<i></i>Published feed unavailable'; note.innerHTML = '<strong>Market data load failed.</strong> ' + safeHtml(detail) + ' No sample records are being shown.'; document.querySelector('#rowCount').textContent = 'Data load failed'; message(detail); }
     finally { loadButton.disabled = false; loadButton.textContent = original; }
   }
 
