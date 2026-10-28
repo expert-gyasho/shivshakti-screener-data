@@ -262,7 +262,7 @@
     return [...periods.values()];
   }
 
-  const marketInstrumentInfo = {'^NSEI':['Nifty 50','Index'],'^NSEBANK':['Bank Nifty','Index'],'^BSESN':['Sensex','Index'],'GC=F':['Gold Futures','Commodity'],'SI=F':['Silver Futures','Commodity'],'CL=F':['Crude Oil Futures','Commodity'],'NG=F':['Natural Gas Futures','Commodity']};
+  const marketInstrumentInfo = {'^NSEI':['Nifty 50','Index'],'^NSEBANK':['Bank Nifty','Index'],'^BSESN':['Sensex','Index'],'GC=F':['Gold Futures (USD/oz)','Commodity'],'SI=F':['Silver Futures (USD/oz)','Commodity'],'CL=F':['Crude Oil Futures (USD/barrel)','Commodity'],'NG=F':['Natural Gas Futures (USD/MMBtu)','Commodity']};
   function createStock(symbol) {
     const info = marketInstrumentInfo[symbol] || [symbol, '—'];
     return { symbol, name: info[0], sector: info[1], price: 0, change: null,
