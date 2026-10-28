@@ -524,14 +524,39 @@
     if (loadButton.disabled) return;
     loadButton.disabled = true; loadButton.textContent = 'Loading…';
     try {
-      const url = rawGithubUrl(urlInput.value.trim());
-      localStorage.setItem('shivshakti-csv-url', urlInput.value.trim());
-      const response = await fetch(url, { cache: 'no-store' });
-      if (!response.ok) throw new Error(`GitHub CSV load failed (${response.status}).`);
-      await importLargeCandleStream(response, `GitHub CSV · ${new Date().toLocaleTimeString('en-IN')}`);
+      const enteredUrl = urlInput.value.trim();
+      const url = rawGithubUrl(enteredUrl);
+      try { localStorage.setItem('shivshakti-csv-url', enteredUrl); } catch { /* Optional preference only. */ }
+      const loadFrom = async (feedUrl, label) => {
+        const response = await fetch(feedUrl, { cache: 'no-store' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        await importLargeCandleStream(response, label);
+      };
+      try {
+        await loadFrom(url, `GitHub Pages feed · ${new Date().toLocaleTimeString('en-IN')}`);
+      } catch (pagesError) {
+        // Pages may be disabled, stale, or blocked while the public repository file is available.
+        const fallbackUrl = new URL('https://raw.githubusercontent.com/expert-gyasho/shivshakti-screener-data/main/candles.csv.gz');
+        fallbackUrl.searchParams.set('_refresh', Date.now());
+        try {
+          loadButton.textContent = 'Trying backup feed…';
+          await loadFrom(fallbackUrl.href, `GitHub raw backup · ${new Date().toLocaleTimeString('en-IN')}`);
+          message('Pages feed unavailable; loaded data from GitHub backup.');
+        } catch (fallbackError) {
+          throw new Error(`Pages feed failed: ${pagesError.message || 'network error'}. GitHub backup failed: ${fallbackError.message || 'network error'}.`);
+        }
+      }
       if (isAuto) message('GitHub CSV auto-reload complete.');
-    } catch (error) { const detail = error.message || 'GitHub CSV load failed'; document.querySelector('.sample-pill').textContent = '● DATA LOAD FAILED'; const feedState = document.querySelector('#feedState'); if (feedState) feedState.textContent = 'ERROR'; const loadedSymbols = document.querySelector('#loadedSymbols'); if (loadedSymbols) loadedSymbols.textContent = '—'; document.querySelector('.market-pill').innerHTML = '<i></i>Published feed unavailable'; note.innerHTML = '<strong>Market data load failed.</strong> ' + safeHtml(detail) + ' No sample records are being shown.'; document.querySelector('#rowCount').textContent = 'Data load failed'; message(detail); }
-    finally { loadButton.disabled = false; loadButton.textContent = original; }
+    } catch (error) {
+      const detail = error.message || 'GitHub CSV load failed';
+      document.querySelector('.sample-pill').textContent = '● DATA LOAD FAILED';
+      const feedState = document.querySelector('#feedState'); if (feedState) feedState.textContent = 'ERROR';
+      const loadedSymbols = document.querySelector('#loadedSymbols'); if (loadedSymbols) loadedSymbols.textContent = '—';
+      document.querySelector('.market-pill').innerHTML = '<i></i>Published feed unavailable';
+      note.innerHTML = '<strong>Market data load failed.</strong> ' + safeHtml(detail) + ' No sample records are being shown.';
+      document.querySelector('#rowCount').textContent = 'Data load failed';
+      message(detail);
+    } finally { loadButton.disabled = false; loadButton.textContent = original; }
   }
 
   try {
