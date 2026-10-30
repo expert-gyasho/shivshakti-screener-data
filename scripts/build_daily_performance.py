@@ -214,13 +214,18 @@ def update_performance(signal: dict, bars: list[dict]) -> None:
             first_exit_type = "both" if hit_target and hit_stop else "target" if hit_target else "stop"
     if entry_index is None:
         favourable_close = favourable = adverse = ""
-        if any((bar["high"] >= target if side == "demand" else bar["low"] <= target) for bar in later):
+        target_bar = next((bar for bar in later if (bar["high"] >= target if side == "demand" else bar["low"] <= target)), None)
+        stop_bar = next((bar for bar in later if (bar["low"] <= stop if side == "demand" else bar["high"] >= stop)), None)
+        target_time = target_bar["stamp"].strftime("%H:%M") if target_bar else ""
+        stop_time = stop_bar["stamp"].strftime("%H:%M") if stop_bar else ""
+        if target_time and stop_time and target_time == stop_time:
+            outcome = "Target and SL touched before entry in same 15m candle"
+        elif target_time and (not stop_time or target_time < stop_time):
             outcome = "Target touched before entry"
-        elif any((bar["low"] <= stop if side == "demand" else bar["high"] >= stop) for bar in later):
+        elif stop_time:
             outcome = "Stop touched before entry"
         else:
             outcome = "Entry not triggered"
-        target_time = stop_time = ""
     else:
         post_entry = trade_bars
         trade_high = max(bar["high"] for bar in post_entry)
