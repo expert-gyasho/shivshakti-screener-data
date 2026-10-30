@@ -7,6 +7,7 @@ on:
     paths:
       - "requirements.txt"
       - "scripts/refresh_market_data.py"
+      - "scripts/build_daily_performance.py"
       - ".github/workflows/refresh-market-data.yml"
   schedule:
     # NSE session in IST is approximately 09:15-15:30 (UTC 03:45-10:00).
@@ -40,8 +41,13 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Validate 7/7 performance script syntax
+        run: python -m py_compile scripts/build_daily_performance.py
+
       - name: Refresh OHLCV files
         run: python scripts/refresh_market_data.py
+      - name: Build persistent 7/7 daily performance snapshots
+        run: python scripts/build_daily_performance.py
 
       - name: Commit updated CSV files
         run: |
