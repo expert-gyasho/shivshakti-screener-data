@@ -196,6 +196,8 @@ def update_performance(signal: dict, bars: list[dict]) -> None:
     last_price = later[-1]["close"]
     entry_time = target_time = stop_time = ""
     both_same_bar = False
+    first_exit_type = ""
+    first_exit_time = ""
     for bar in later:
         hit_entry = bar["low"] <= entry <= bar["high"]
         hit_target = bar["high"] >= target if side == "demand" else bar["low"] <= target
@@ -207,17 +209,22 @@ def update_performance(signal: dict, bars: list[dict]) -> None:
             target_time = stamp
         if hit_stop and not stop_time:
             stop_time = stamp
-        if hit_target and hit_stop:
-            both_same_bar = True
+        if (hit_target or hit_stop) and not first_exit_type:
+            if hit_target and hit_stop:
+                both_same_bar = True
+                first_exit_type = "both"
+            else:
+                first_exit_type = "target" if hit_target else "stop"
+            first_exit_time = stamp
     favourable_close = (last_price - entry) / entry * 100 if side == "demand" else (entry - last_price) / entry * 100
     favourable = (high_after - entry) / entry * 100 if side == "demand" else (entry - low_after) / entry * 100
     adverse = (entry - low_after) / entry * 100 if side == "demand" else (high_after - entry) / entry * 100
-    if both_same_bar:
+    if first_exit_type == "both":
         outcome = "Both touched in same 15m candle"
-    elif target_time and (not stop_time or target_time < stop_time):
-        outcome = "Target hit"
-    elif stop_time:
-        outcome = "Stop-loss hit"
+    elif first_exit_type == "target":
+        outcome = "Target hit" if entry_time else "Target touched before entry"
+    elif first_exit_type == "stop":
+        outcome = "Stop-loss hit" if entry_time else "Stop touched before entry"
     else:
         outcome = "Open"
     signal.update({
