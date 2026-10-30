@@ -32,3 +32,14 @@ Optional environment settings:
 - `NIFTY500_CSV_URL` (override the universe CSV URL)
 
 Keep API keys, passwords, PINs and OTPs out of this public repository. If you add a licensed provider later, store credentials in GitHub Actions Secrets.
+
+## 7/7 Daily Performance
+
+The scheduled market-data workflow runs during the NSE session and, after refreshing the 15-minute OHLCV feed, runs `scripts/build_daily_performance.py`. It records authentic 7/7 Gyan zones confirmed before 15:30 IST, keeps the original signal timestamp and Entry/Stop-Loss/2R Target, and appends the session's 15-minute chart candles to:
+
+- `data/daily_7of7_performance.csv`
+- `data/daily_7of7_chart_candles.csv`
+
+The dashboard's **7/7 Daily Performance** tab lets you select a session date and open a marked intraday chart. Performance returns and favourable/adverse excursions are calculated only after the Entry level is touched. If Target or Stop is crossed before Entry, it is labelled as such; if both levels are crossed in the same 15-minute candle, the sequence is marked ambiguous.
+
+**Timeframe caveat:** 125-minute Gyan groups are derived from 15-minute candles using the same NSE-session bucket logic as the browser screener. They are approximations, not native exchange 125-minute candles. The Yahoo Finance/yfinance feed is unofficial and may be delayed, incomplete or unavailable; verify prices and data-use permissions independently.
