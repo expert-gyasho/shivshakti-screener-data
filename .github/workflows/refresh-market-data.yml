@@ -42,6 +42,8 @@ jobs:
 
       - name: Refresh OHLCV files
         run: python scripts/refresh_market_data.py
+      - name: Build persistent 7/7 daily performance snapshots
+        run: python scripts/build_daily_performance.py
 
       - name: Commit updated CSV files
         run: |
