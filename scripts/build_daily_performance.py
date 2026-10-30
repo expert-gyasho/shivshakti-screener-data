@@ -145,20 +145,23 @@ def find_zones(candles: list[dict], side: str) -> list[dict]:
         proximal = max(pair[1] for pair in body_edges) if demand else min(pair[0] for pair in body_edges)
         distal = min(c["low"] for c in base) if demand else max(c["high"] for c in base)
         low, high = min(proximal, distal), max(proximal, distal)
-        revisits, was_inside = 0, False
-        for future in candles[end + 1:]:
-            inside = future["low"] <= high and future["high"] >= low
-            if inside and not was_inside:
-                revisits += 1
-                if revisits >= 2:
-                    break
-            was_inside = inside
         next_candle = candles[end + 1] if end + 1 < len(candles) else None
         gap = departure["low"] > base[-1]["high"] if demand else departure["high"] < base[-1]["low"]
         second_exciting = bool(
             next_candle and next_candle["body_pct"] > 50 and
             (next_candle["close"] > next_candle["open"] if demand else next_candle["close"] < next_candle["open"])
         )
+        # Snapshot freshness as it was knowable when the 7/7 setup formed.
+        # Later retests must not erase a signal that was already generated.
+        signal_end = end if gap else end + 1 if second_exciting else end
+        revisits, was_inside = 0, False
+        for future in candles[end + 1:signal_end + 1]:
+            inside = future["low"] <= high and future["high"] >= low
+            if inside and not was_inside:
+                revisits += 1
+                if revisits >= 2:
+                    break
+            was_inside = inside
         strength_score = 2 if gap or second_exciting else 1
         freshness_score = 3 if revisits == 0 else 1.5 if revisits == 1 else 0
         base_score = 2 if base_count <= 3 else 1 if base_count <= 5 else 0
