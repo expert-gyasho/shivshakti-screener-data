@@ -194,48 +194,54 @@ def update_performance(signal: dict, bars: list[dict]) -> None:
     high_after = max(bar["high"] for bar in later)
     low_after = min(bar["low"] for bar in later)
     last_price = later[-1]["close"]
-    entry_time = target_time = stop_time = ""
-    both_same_bar = False
+    entry_index = next((i for i, bar in enumerate(later) if bar["low"] <= entry <= bar["high"]), None)
+    entry_time = later[entry_index]["stamp"].strftime("%H:%M") if entry_index is not None else ""
+    trade_bars = later[entry_index:] if entry_index is not None else []
+    target_time = stop_time = ""
     first_exit_type = ""
-    first_exit_time = ""
-    for bar in later:
-        hit_entry = bar["low"] <= entry <= bar["high"]
+    for bar in trade_bars:
         hit_target = bar["high"] >= target if side == "demand" else bar["low"] <= target
         hit_stop = bar["low"] <= stop if side == "demand" else bar["high"] >= stop
         stamp = bar["stamp"].strftime("%H:%M")
-        if hit_entry and not entry_time:
-            entry_time = stamp
         if hit_target and not target_time:
             target_time = stamp
         if hit_stop and not stop_time:
             stop_time = stamp
         if (hit_target or hit_stop) and not first_exit_type:
-            if hit_target and hit_stop:
-                both_same_bar = True
-                first_exit_type = "both"
-            else:
-                first_exit_type = "target" if hit_target else "stop"
-            first_exit_time = stamp
-    favourable_close = (last_price - entry) / entry * 100 if side == "demand" else (entry - last_price) / entry * 100
-    favourable = (high_after - entry) / entry * 100 if side == "demand" else (entry - low_after) / entry * 100
-    adverse = (entry - low_after) / entry * 100 if side == "demand" else (high_after - entry) / entry * 100
-    if first_exit_type == "both":
-        outcome = "Both touched in same 15m candle"
-    elif first_exit_type == "target":
-        outcome = "Target hit" if entry_time else "Target touched before entry"
-    elif first_exit_type == "stop":
-        outcome = "Stop-loss hit" if entry_time else "Stop touched before entry"
+            first_exit_type = "both" if hit_target and hit_stop else "target" if hit_target else "stop"
+    if entry_index is None:
+        favourable_close = favourable = adverse = ""
+        if any((bar["high"] >= target if side == "demand" else bar["low"] <= target) for bar in later):
+            outcome = "Target touched before entry"
+        elif any((bar["low"] <= stop if side == "demand" else bar["high"] >= stop) for bar in later):
+            outcome = "Stop touched before entry"
+        else:
+            outcome = "Entry not triggered"
+        target_time = stop_time = ""
     else:
-        outcome = "Open"
+        post_entry = trade_bars
+        trade_high = max(bar["high"] for bar in post_entry)
+        trade_low = min(bar["low"] for bar in post_entry)
+        favourable_close = (last_price - entry) / entry * 100 if side == "demand" else (entry - last_price) / entry * 100
+        favourable = (trade_high - entry) / entry * 100 if side == "demand" else (entry - trade_low) / entry * 100
+        adverse = (entry - trade_low) / entry * 100 if side == "demand" else (trade_high - entry) / entry * 100
+        if first_exit_type == "both":
+            outcome = "Both touched in same 15m candle"
+        elif first_exit_type == "target":
+            outcome = "Target hit"
+        elif first_exit_type == "stop":
+            outcome = "Stop-loss hit"
+        else:
+            outcome = "Open"
     signal.update({
-        "entry_touched": "Yes" if entry_time else "No",
+        "entry_touched": "Yes" if entry_index is not None else "No",
         "entry_time": entry_time,
         "high_after_signal": f"{high_after:.4f}",
         "low_after_signal": f"{low_after:.4f}",
         "last_price": f"{last_price:.4f}",
-        "close_return_pct": f"{favourable_close:.3f}",
-        "max_favorable_pct": f"{favourable:.3f}",
-        "max_adverse_pct": f"{adverse:.3f}",
+        "close_return_pct": "" if favourable_close == "" else f"{favourable_close:.3f}",
+        "max_favorable_pct": "" if favourable == "" else f"{favourable:.3f}",
+        "max_adverse_pct": "" if adverse == "" else f"{adverse:.3f}",
         "target_hit_time": target_time,
         "stop_hit_time": stop_time,
         "outcome": outcome,
@@ -273,6 +279,8 @@ def main() -> int:
                 if zone["strength_reason"] == "twoCandles" and zone["next_candle"]:
                     signal_time = zone["next_candle"]["end_time"]
                 if signal_time.date().isoformat() != today:
+                    continue
+                if signal_time.hour > 15 or (signal_time.hour == 15 and signal_time.minute >= 30):
                     continue
                 risk = zone["distal"] - zone["proximal"] if side == "supply" else zone["proximal"] - zone["distal"]
                 if risk <= 0:
