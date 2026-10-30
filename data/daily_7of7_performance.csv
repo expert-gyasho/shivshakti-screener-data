@@ -1,0 +1,1 @@
+date,symbol,side,pattern,timeframe,signal_time,signal_price,score,entry,stop_loss,target,entry_touched,entry_time,high_after_signal,low_after_signal,last_price,close_return_pct,max_favorable_pct,max_adverse_pct,target_hit_time,stop_hit_time,outcome,updated_utc
