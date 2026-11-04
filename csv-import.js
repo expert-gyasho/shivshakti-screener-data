@@ -470,7 +470,7 @@
         if (saveCandlesButton) saveCandlesButton.disabled = true;
         document.querySelector('.sample-pill').textContent = '● CSV TEMPLATE · NO MARKET DATA';
         document.querySelector('.market-pill').innerHTML = '<i></i>' + safeHtml(source);
-        note.innerHTML = '<strong>CSV template connected, but it has no candle rows yet.</strong> Add verified OHLCV rows to GitHub before expecting prices or Zone Analysis.';
+        note.innerHTML = '<strong>CSV template connected, but it has no candle rows yet.</strong> Add verified OHLCV rows to your data source before expecting prices or Zone Analysis.';
         document.queryestor('#tabs [data-view="candles"]')?.click();
         render();
         message('CSV headings found; no market rows yet');
@@ -487,7 +487,7 @@
     const url = new URL(input);
     if (url.hostname === 'github.com') {
       const parts = url.pathname.split('/').filter(Boolean);
-      if (parts.length < 5 || parts[2] !== 'blob') throw new Error('GitHub file ka Raw link paste kijiye.');
+      if (parts.length < 5 || parts[2] !== 'blob') throw new Error('Please provide a valid raw CSV link.');
       url.hostname = 'raw.githubusercontent.com';
       url.pathname = '/' + [parts[0], parts[1], ...parts.slice(3)].join('/');
       url.search = ''; url.hash = '';
@@ -499,7 +499,7 @@
       url.search = ''; url.hash = '';
     }
     if (!['raw.githubusercontent.com', 'gist.githubusercontent.com', 'expert-gyasho.github.io'].includes(url.hostname) || url.protocol !== 'https:') {
-      throw new Error('Public GitHub CSV link daaliye. Private repo links supported nahi hain.');
+      throw new Error('Please provide a supported public CSV link.');
     }
     url.searchParams.set('_refresh', Date.now());
     return url.href;
@@ -534,22 +534,22 @@
         await importLargeCandleStream(response, label);
       };
       try {
-        await loadFrom(url, `GitHub Pages feed · ${new Date().toLocaleTimeString('en-IN')}`);
+        await loadFrom(url, `Published data feed · ${new Date().toLocaleTimeString('en-IN')}`);
       } catch (pagesError) {
         // Pages may be disabled, stale, or blocked while the public repository file is available.
         const fallbackUrl = new URL('https://raw.githubusercontent.com/expert-gyasho/shivshakti-screener-data/main/candles.csv.gz');
         fallbackUrl.searchParams.set('_refresh', Date.now());
         try {
           loadButton.textContent = 'Trying backup feed…';
-          await loadFrom(fallbackUrl.href, `GitHub raw backup · ${new Date().toLocaleTimeString('en-IN')}`);
-          message('Pages feed unavailable; loaded data from GitHub backup.');
+          await loadFrom(fallbackUrl.href, `Data feed backup · ${new Date().toLocaleTimeString('en-IN')}`);
+          message('Primary feed unavailable; loaded data from backup.');
         } catch (fallbackError) {
-          throw new Error(`Pages feed failed: ${pagesError.message || 'network error'}. GitHub backup failed: ${fallbackError.message || 'network error'}.`);
+          throw new Error(`Primary feed failed: ${pagesError.message || 'network error'}. Backup failed: ${fallbackError.message || 'network error'}.`);
         }
       }
-      if (isAuto) message('GitHub CSV auto-reload complete.');
+      if (isAuto) message('Data feed auto-reload complete.');
     } catch (error) {
-      const detail = error.message || 'GitHub CSV load failed';
+      const detail = error.message || 'Data import failed';
       document.querySelector('.sample-pill').textContent = '● DATA LOAD FAILED';
       const feedState = document.querySelector('#feedState'); if (feedState) feedState.textContent = 'ERROR';
       const loadedSymbols = document.querySelector('#loadedSymbols'); if (loadedSymbols) loadedSymbols.textContent = '—';
