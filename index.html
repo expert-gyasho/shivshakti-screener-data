@@ -237,7 +237,7 @@ const zoneFrameOptions=[
 ];
 let zoneFinderFrame='0';
 function zoneState(stock,side,timeframe){
- if(/^\\d$/.test(timeframe))return stock[side]?.[Number(timeframe)]||'No zone';
+ if(/^\d$/.test(timeframe))return stock[side]?.[Number(timeframe)]||'No zone';
  return stock.candleFrames?.[timeframe]?.[side]?.state||'No zone';
 }
 document.querySelectorAll('[data-zone-frame]').forEach(button=>button.addEventListener('click',()=>{
