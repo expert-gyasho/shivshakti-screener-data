@@ -15,8 +15,8 @@
   "daily_history_period": "max",
   "daily_fetch_period": "5d",
   "intraday_period": "1mo",
-  "last_successful_run_utc": "2026-11-05T11:36:33.032789+00:00",
-  "duration_seconds": 383.0,
+  "last_successful_run_utc": "2026-11-05T12:15:45.220663+00:00",
+  "duration_seconds": 502.0,
   "timeframe_rows": {
     "Daily": 2060682,
     "Weekly": 433849,
