@@ -15,16 +15,16 @@
   "daily_history_period": "max",
   "daily_fetch_period": "5d",
   "intraday_period": "1mo",
-  "last_successful_run_utc": "2026-11-09T12:52:08.931921+00:00",
-  "duration_seconds": 497.1,
+  "last_successful_run_utc": "2026-11-09T20:27:26.915879+00:00",
+  "duration_seconds": 444.3,
   "timeframe_rows": {
-    "Daily": 2061698,
-    "Weekly": 434353,
+    "Daily": 2061695,
+    "Weekly": 434350,
     "Monthly": 100302,
     "Quarterly": 33730,
     "Half-Yearly": 17278,
     "Yearly": 8638,
-    "15-Minute": 257306,
+    "15-Minute": 257428,
     "4-Hour": 126346
   },
   "timeframes_validated": [
@@ -38,9 +38,9 @@
     "Yearly"
   ],
   "csv_rows": {
-    "candles.csv.gz": 3039651,
-    "data/daily_ohlcv.csv.gz": 2061698,
-    "data/intraday_15m.csv": 257306
+    "candles.csv.gz": 3039767,
+    "data/daily_ohlcv.csv.gz": 2061695,
+    "data/intraday_15m.csv": 257428
   },
   "warning": "Unofficial market data; verify accuracy and data-use permissions before trading or redistribution."
 }
