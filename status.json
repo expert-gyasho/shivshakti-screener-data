@@ -4,28 +4,28 @@
   "universe": "NIFTY 500",
   "symbols_requested": 508,
   "daily_symbols_received": 513,
-  "intraday_symbols_received": 504,
-  "hourly_symbols_received": 504,
+  "intraday_symbols_received": 505,
+  "hourly_symbols_received": 505,
   "hourly_fetch_period": "5d",
   "failed_daily_symbols": [
     "BAGMANE",
-    "DUMMYHEG"
+    "HEGRAPHITE"
   ],
   "daily_period": "max",
   "daily_history_period": "max",
   "daily_fetch_period": "5d",
   "intraday_period": "1mo",
-  "last_successful_run_utc": "2026-11-26T19:27:28.910383+00:00",
-  "duration_seconds": 298.4,
+  "last_successful_run_utc": "2026-11-27T13:11:09.911174+00:00",
+  "duration_seconds": 238.3,
   "timeframe_rows": {
-    "Daily": 2067269,
+    "Daily": 2067774,
     "Weekly": 435367,
     "Monthly": 100302,
     "Quarterly": 33730,
     "Half-Yearly": 17278,
     "Yearly": 8638,
-    "15-Minute": 258584,
-    "4-Hour": 126924
+    "15-Minute": 258607,
+    "4-Hour": 126972
   },
   "timeframes_validated": [
     "15-Minute",
@@ -38,9 +38,9 @@
     "Yearly"
   ],
   "csv_rows": {
-    "candles.csv.gz": 3048092,
-    "data/daily_ohlcv.csv.gz": 2067269,
-    "data/intraday_15m.csv": 258584
+    "candles.csv.gz": 3048668,
+    "data/daily_ohlcv.csv.gz": 2067774,
+    "data/intraday_15m.csv": 258607
   },
   "warning": "Unofficial market data; verify accuracy and data-use permissions before trading or redistribution."
 }
